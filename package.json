@@ -1,0 +1,12 @@
+{
+  "name": "circle-sync-backend",
+  "version": "1.0.0",
+  "description": "Real-time socket server for circle syncing",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "socket.io": "^4.7.2"
+  }
+}
