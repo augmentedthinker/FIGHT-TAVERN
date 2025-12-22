@@ -43,8 +43,8 @@
         let myColor = `hsl(${Math.floor(Math.random() * 360)}, 70%, 60%)`;
         let circles = [];
 
-        // REPLACE THIS with your Railway URL after deployment
-        const RAILWAY_URL = "https://your-project-production.up.railway.app";
+        // Updated with your specific Railway URL
+        const RAILWAY_URL = "https://fight-tavern-production.up.railway.app";
 
         function init() {
             resize();
@@ -88,12 +88,6 @@
         }
 
         function connectToServer() {
-            // Check if user changed the URL
-            if (RAILWAY_URL.includes("your-project")) {
-                statusText.innerText = "Please edit index.html with your Railway URL";
-                return;
-            }
-
             socket = io(RAILWAY_URL);
 
             socket.on('connect', () => {
