@@ -3,378 +3,1667 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Multiplayer Battle</title>
+    <title>Dungeon Master's Chronicle</title>
+    
+    <!-- --- LIBRARIES --- -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons for Battle UI -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Socket.IO Client -->
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=MedievalSharp&display=swap" rel="stylesheet">
+    
+    <!-- Three.js Import Map -->
+    <script type="importmap">
+        { "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+            "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js"
+        }}
+    </script>
+
+    <!-- --- FONTS --- -->
+    <link href="https://fonts.googleapis.com/css2?family=Alegreya:wght@400;700&family=Pirata+One&family=MedievalSharp&display=swap" rel="stylesheet">
+
     <style>
-        /* --- GLOBAL STYLES --- */
-        body { background-color: #020617; color: #e2e8f0; font-family: 'MedievalSharp', cursive; overflow: hidden; }
-        .text-glow { text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; }
+        /* --- GLOBAL & RESET --- */
+        body { margin: 0; padding: 0; overflow: hidden; background-color: black; font-family: 'Alegreya', serif; }
+        body, #root, #gate-root, #sanctuary-wrapper { touch-action: none; overscroll-behavior: none; } 
         
-        /* Glassmorphism for HUD */
-        .hud-panel { 
-            background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(15, 23, 42, 0.8) 100%); 
-            backdrop-filter: blur(4px); 
-            border-top: 1px solid rgba(255, 255, 255, 0.15); 
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .font-pirata { font-family: 'Pirata One', cursive; }
+        .text-shadow-heavy { text-shadow: 0 4px 8px rgba(0,0,0,0.9), 0 1px 3px rgba(0,0,0,0.8); }
+
+        /* --- CONTAINER VISIBILITY UTILS --- */
+        .scene-container {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            display: none; 
+        }
+        .scene-container.active {
+            display: block;
         }
 
-        /* --- SPLIT SCREEN ANIMATIONS --- */
-        .split-panel {
-            position: relative; width: 50%; height: 100%; overflow: hidden;
-            transition: width 0.5s ease, filter 0.5s ease;
+        /* --- PART 1 (INTRO) STYLES --- */
+        @keyframes rotate-phone {
+            0%, 10% { transform: rotate(0deg); opacity: 1; }
+            40%, 60% { transform: rotate(-90deg); opacity: 1; }
+            90%, 100% { transform: rotate(-90deg); opacity: 0; }
         }
-        /* When it's your turn, your panel expands slightly and brightens */
-        .active-turn { width: 55%; filter: brightness(1.1); z-index: 10; border-left: 2px solid rgba(255,255,255,0.1); border-right: 2px solid rgba(255,255,255,0.1); }
-        .inactive-turn { width: 45%; filter: grayscale(0.6) brightness(0.6); z-index: 0; }
+
+        /* --- PART 2 (THE GATES) SPECIFIC STYLES --- */
+        #gate-root {
+            background: linear-gradient(to bottom, #1a0505, #0f172a); 
+            background-size: cover;
+            color: #e2e8f0;
+            z-index: 500;
+        }
+        #gate-root::before {
+            content: "";
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(circle at center, rgba(0,0,0,0) 0%, rgba(0,0,0,0.6) 90%);
+            pointer-events: none;
+        }
+
+        .dice-widget-container {
+            position: relative;
+            width: 320px;
+            max-width: 90vw;
+            height: 450px;
+            max-height: 85vh;
+            border-radius: 20px;
+            overflow: hidden;
+            background: #f1f5f9;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+            display: flex;
+            flex-direction: column;
+        }
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
+        .custom-scroll::-webkit-scrollbar-thumb { background: rgba(245, 158, 11, 0.3); border-radius: 10px; }
+
+        /* --- PART 3 (TAVERN) CSS VARIABLES & STYLES --- */
+        :root {
+            --amber: #f59e0b;
+            --amber-glow: rgba(245, 158, 11, 0.6);
+            --bg-dark: #000000;
+            --dice-bg: #334155;
+            --dice-floor: #f1f5f9;
+            --dice-text-dark: #334155;
+            --dice-text-light: #64748b;
+            --dice-highlight: #3b82f6;
+        }
+
+        /* Scoped Wrapper for Part 3 */
+        #sanctuary-wrapper {
+            background-color: var(--bg-dark);
+            color: #e0e0e0;
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        #sanctuary-wrapper.active { display: flex; }
+
+        /* Tavern UI Styles */
+        #game-container { position: relative; width: 100vw; height: 100vh; background: #000; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        #game-container::after { content: ""; position: absolute; inset: 0; background: radial-gradient(circle, transparent 50%, rgba(0,0,0,0.6) 100%); pointer-events: none; z-index: 5; }
+        #scene-image { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; object-position: center center; transition: opacity 1s ease; opacity: 0; filter: brightness(0.8) contrast(1.1); z-index: 1; }
+        #scene-image.visible { opacity: 1; }
+        #top-title-container { position: absolute; top: 30px; left: 0; right: 0; text-align: center; z-index: 15; pointer-events: none; padding: 0 20px; }
+        #scene-title { font-family: 'Pirata One', cursive; color: var(--amber); font-size: clamp(3rem, 6vw, 4.5rem); margin: 0; letter-spacing: 2px; text-shadow: 0 4px 10px rgba(0,0,0,1); opacity: 0; transition: opacity 1s ease; animation: flicker 5s infinite alternate ease-in-out; }
+        @keyframes flicker { 0%, 100% { opacity: 1; text-shadow: 0 0 20px var(--amber-glow); } 50% { opacity: 0.95; text-shadow: 0 0 10px var(--amber); } }
+        #character-hud { position: absolute; top: 30px; left: 30px; z-index: 50; background: rgba(0, 0, 0, 0.7); border: 1px solid var(--amber); padding: 15px 20px; border-radius: 8px; font-family: 'Pirata One', cursive; color: var(--amber); font-size: 1.3rem; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); backdrop-filter: blur(4px); min-width: 120px; }
+        .stat-line { display: flex; justify-content: space-between; gap: 15px; }
+        .stat-val { color: #fff; }
+        .stat-mod { color: #aaa; font-size: 0.9rem; margin-left: 5px; }
+        #choice-grid { position: absolute; bottom: 40px; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; opacity: 0; transition: opacity 0.5s ease; width: 100%; max-width: 95%; pointer-events: auto; z-index: 60; }
+        #dialogue-area { position: absolute; bottom: 120px; width: 80%; max-width: 700px; background: rgba(10, 10, 10, 0.9); border: 2px solid var(--amber); padding: 20px; color: #ddd; font-size: 1.2rem; text-align: center; border-radius: 8px; z-index: 55; display: none; box-shadow: 0 0 20px rgba(0,0,0,0.8); }
+        .btn-choice { background: rgba(0, 0, 0, 0.85); color: var(--amber); border: 1px solid rgba(245, 158, 11, 0.5); padding: 12px 24px; font-family: 'Pirata One', cursive; font-size: 1.4rem; cursor: pointer; transition: all 0.3s ease; letter-spacing: 1px; box-shadow: 0 4px 10px rgba(0,0,0,0.7); border-radius: 4px; }
+        .btn-choice.ai-btn { border-color: #8b5cf6; color: #a78bfa; }
+        .btn-choice.ai-btn:hover { background: #8b5cf6; color: white; box-shadow: 0 0 15px rgba(139, 92, 246, 0.6); }
+        .btn-choice.mem-btn { border-color: #10b981; color: #34d399; }
+        .btn-choice.mem-btn:hover { background: #10b981; color: white; box-shadow: 0 0 15px rgba(16, 185, 129, 0.6); }
+        .btn-choice.battle-btn { border-color: #ef4444; color: #fca5a5; }
+        .btn-choice.battle-btn:hover { background: #ef4444; color: white; box-shadow: 0 0 15px rgba(239, 68, 68, 0.6); }
+        .btn-choice:hover { background: var(--amber); color: black; box-shadow: 0 0 15px var(--amber-glow); transform: translateY(-3px); }
+
+        /* LIVE BATTLE STYLES */
+        .btn-choice.live-battle {
+            border-color: #4ade80;
+            color: #4ade80;
+            box-shadow: 0 0 15px rgba(74, 222, 128, 0.4);
+            animation: pulse-green 2s infinite;
+        }
+        .btn-choice.live-battle:hover {
+            background: #22c55e;
+            color: black;
+            box-shadow: 0 0 25px rgba(74, 222, 128, 0.8);
+        }
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(74, 222, 128, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+        }
+
+        #controls-left { position: absolute; bottom: 30px; left: 30px; z-index: 50; background: rgba(0,0,0,0.6); padding: 12px; border-radius: 50%; border: 1px solid rgba(245, 158, 11, 0.3); backdrop-filter: blur(4px); cursor: pointer; opacity: 0; transition: opacity 0.5s, transform 0.2s; pointer-events: auto; display: flex; align-items: center; justify-content: center; }
+        #controls-left.active { opacity: 1; }
+        #controls-left:hover { transform: scale(1.1); border-color: var(--amber); }
+        #dice-toggle-btn { position: absolute; top: 30px; right: 30px; z-index: 100; background: rgba(0,0,0,0.6); border: 1px solid rgba(245, 158, 11, 0.5); color: var(--amber); width: 50px; height: 50px; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); transition: all 0.3s; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        #dice-toggle-btn:hover { background: var(--amber); color: black; transform: scale(1.1); box-shadow: 0 0 20px var(--amber-glow); }
+        #journal-btn { position: absolute; top: 30px; right: 90px; z-index: 100; background: rgba(0,0,0,0.6); border: 1px solid rgba(245, 158, 11, 0.5); color: var(--amber); width: 50px; height: 50px; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); transition: all 0.3s; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        #journal-btn:hover { background: var(--amber); color: black; transform: scale(1.1); box-shadow: 0 0 20px var(--amber-glow); }
         
-        .split-image { width: 100%; height: 100%; object-fit: cover; object-position: top center; transition: transform 0.5s ease; }
-        .active-turn .split-image { transform: scale(1.05); }
+        /* Modals */
+        #journal-modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.9); z-index: 250; display: none; align-items: center; justify-content: center; backdrop-filter: blur(5px); opacity: 0; transition: opacity 0.3s; }
+        #journal-modal.active { display: flex; opacity: 1; }
+        #journal-content { width: 90%; max-width: 600px; max-height: 80vh; background: #1a1a1a; border: 2px solid var(--amber); border-radius: 8px; padding: 30px; overflow-y: auto; color: #ddd; font-family: 'Alegreya', serif; box-shadow: 0 0 30px rgba(245, 158, 11, 0.2); position: relative; }
+        #journal-content h2 { font-family: 'Pirata One', cursive; color: var(--amber); text-align: center; margin-top: 0; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .journal-entry { margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px dashed #333; font-size: 1.1rem; line-height: 1.6; }
+        .journal-entry:last-child { border-bottom: none; }
+        #memory-modal { position: fixed; inset: 0; background: #000; z-index: 300; display: none; flex-direction: column; opacity: 0; transition: opacity 0.5s ease; }
+        #memory-modal.active { display: flex; opacity: 1; }
+        #memory-header { width: 100%; padding: 15px 20px; background: rgba(0, 0, 0, 0.85); border-bottom: 2px solid var(--amber); display: flex; align-items: center; justify-content: space-between; box-sizing: border-box; z-index: 10; }
+        #memory-title { font-family: 'Pirata One', cursive; color: var(--amber); font-size: 2.5rem; margin: 0; text-shadow: 0 0 15px rgba(245, 158, 11, 0.6); text-align: center; flex-grow: 1; }
+        #memory-back-btn { background: transparent; border: 2px solid var(--amber); color: var(--amber); font-family: 'Alegreya', serif; font-size: 1.2rem; font-weight: bold; padding: 8px 20px; border-radius: 4px; cursor: pointer; transition: all 0.3s; text-transform: uppercase; letter-spacing: 1px; }
+        #memory-back-btn:hover { background: var(--amber); color: #000; box-shadow: 0 0 15px var(--amber-glow); }
+        #memory-img-container { flex: 1; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+        #memory-img { width: 100%; height: 100%; object-fit: contain; display: block; }
+        #memory-img[src=""] { display: none; }
+        
+        /* Dice Modal */
+        #dice-modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(5px); z-index: 200; display: none; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s ease; }
+        #dice-modal-overlay.active { display: flex; opacity: 1; }
+        #dice-widget { position: relative; width: 360px; height: 500px; border-radius: 24px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.1); background: var(--dice-floor); display: flex; flex-direction: column; transform: scale(0.9); transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        #dice-modal-overlay.active #dice-widget { transform: scale(1); }
+        #widget-ui { position: absolute; inset: 0; z-index: 10; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 20px; }
+        .dice-header { position: relative; text-align: center; padding-bottom: 15px; border-bottom: 1px solid rgba(0,0,0,0.05); background: linear-gradient(to bottom, rgba(241, 245, 249, 0.95), transparent); }
+        .dice-title { color: var(--dice-text-light); font-size: 0.75rem; letter-spacing: 2px; text-transform: uppercase; font-weight: 700; font-family: 'Segoe UI', sans-serif; }
+        #color-picker-wrapper { position: absolute; top: 0; right: 0; pointer-events: auto; }
+        #current-color-btn { width: 20px; height: 20px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer; background: var(--dice-highlight); transition: transform 0.2s; padding: 0; }
+        #current-color-btn:hover { transform: scale(1.1); }
+        #color-dropdown { position: absolute; top: 30px; right: -5px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(4px); padding: 8px; border-radius: 12px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); display: grid; grid-template-columns: 1fr 1fr; gap: 8px; opacity: 0; transform: translateY(-10px); pointer-events: none; transition: all 0.2s ease; border: 1px solid rgba(0,0,0,0.05); }
+        #color-dropdown.open { opacity: 1; transform: translateY(0); pointer-events: auto; }
+        .color-option { width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: transform 0.1s; }
+        .color-option:hover { transform: scale(1.15); border-color: rgba(0,0,0,0.1); }
+        #result-display { font-family: 'Segoe UI', sans-serif; font-size: 5rem; font-weight: 800; color: var(--dice-text-dark); text-align: center; -webkit-text-stroke: 3px var(--dice-floor); text-shadow: 0 5px 15px rgba(0,0,0,0.15); opacity: 0; transform: translate(-50%, -50%) scale(0.8); transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); position: absolute; top: 45%; left: 50%; pointer-events: none; z-index: 20; }
+        #result-display.visible { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        .controls-area { pointer-events: auto; background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.8); border-radius: 16px; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+        .dice-selector { display: flex; justify-content: space-between; background: rgba(0,0,0,0.05); border-radius: 12px; padding: 4px; }
+        .die-btn { background: none; border: none; color: var(--dice-text-light); font-weight: bold; font-size: 0.8rem; padding: 8px 6px; cursor: pointer; border-radius: 8px; transition: all 0.2s; font-family: 'Segoe UI', sans-serif; }
+        .die-btn:hover { color: var(--dice-text-dark); background: rgba(0,0,0,0.05); }
+        .die-btn.display-none { display: none; }
+        .die-btn.active { background: #ffffff; color: #0284c7; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        #roll-btn { background: var(--dice-highlight); border: none; padding: 12px; color: white; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; border-radius: 12px; cursor: pointer; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2); transition: 0.1s; font-family: 'Segoe UI', sans-serif; }
+        #roll-btn:active { transform: scale(0.98); }
+        #roll-btn:disabled { filter: grayscale(1); opacity: 0.5; cursor: default; }
+        #canvas-container { width: 100%; height: 100%; }
+        #close-dice-btn { position: absolute; top: 20px; right: 20px; background: transparent; border: none; color: white; font-size: 2rem; cursor: pointer; z-index: 210; }
+        #close-dice-btn:hover { color: var(--amber); }
 
-        /* HP Bars */
-        .hp-track {
-            background: rgba(0,0,0,0.6);
-            border: 1px solid rgba(255,255,255,0.2);
-            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        /* --- BATTLE WIDGET STYLES (New) --- */
+        #fight-modal {
+            position: fixed; inset: 0; background: #000; z-index: 300;
+            display: none; flex-direction: column;
+            font-family: 'MedievalSharp', cursive;
         }
-        .hp-fill { transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        #fight-modal.active { display: flex; }
+        
+        .battle-split-container { display: flex; flex-direction: column; width: 100%; height: 100%; position: relative; }
+        @media (min-width: 768px) { .battle-split-container { flex-direction: row; } }
 
-        /* Damage Animations */
-        .taking-damage .split-image { animation: damage-shake 0.4s cubic-bezier(.36,.07,.19,.97) both; filter: sepia(1) hue-rotate(-50deg) saturate(5); }
-        @keyframes damage-shake {
-            10%, 90% { transform: translate3d(-2px, 0, 0) scale(1.05); }
-            20%, 80% { transform: translate3d(4px, 0, 0) scale(1.05); }
-            30%, 50%, 70% { transform: translate3d(-8px, 0, 0) scale(1.05); }
-            40%, 60% { transform: translate3d(8px, 0, 0) scale(1.05); }
+        .battle-panel { 
+            position: relative; flex: 1; overflow: hidden; transition: all 0.5s ease; border: 4px solid #1e293b; 
         }
+        .active-turn { flex: 1.2; filter: brightness(1.1); z-index: 10; border-color: #facc15; box-shadow: inset 0 0 20px rgba(250, 204, 21, 0.2); }
+        .inactive-turn { flex: 0.8; filter: grayscale(0.8) brightness(0.6); z-index: 0; border-color: #0f172a; }
+        
+        .battle-img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s ease; }
+        .active-turn .battle-img { transform: scale(1.05); }
 
-        /* Floating Text */
+        .hp-container {
+            position: absolute; top: 1rem; width: 80%; z-index: 30;
+            background: rgba(0,0,0,0.8); padding: 0.5rem; border-radius: 0.5rem;
+            border: 1px solid rgba(255,255,255,0.2); left: 50%; transform: translateX(-50%);
+        }
+        .hp-track { width: 100%; height: 12px; background: #334155; border-radius: 2px; overflow: hidden; }
+        .hp-fill { height: 100%; transition: width 0.3s ease; }
+
         @keyframes floatUp {
-            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
-            10% { transform: translate(-50%, -50%) scale(1.5); opacity: 1; }
-            100% { transform: translate(-50%, -150%) scale(0.8); opacity: 0; }
+            0% { transform: translate(-50%, 0) scale(0.5); opacity: 0; }
+            10% { transform: translate(-50%, -20px) scale(1.5); opacity: 1; }
+            100% { transform: translate(-50%, -100px) scale(0.8); opacity: 0; }
         }
         .damage-text {
-            position: absolute; left: 50%; top: 30%;
-            font-size: 8rem; color: #ef4444; font-weight: 900;
-            text-shadow: 4px 4px 0 #000; pointer-events: none; 
-            animation: floatUp 2.5s ease-out forwards; z-index: 50;
-        }
-        .miss-text {
-            position: absolute; left: 50%; top: 30%;
-            font-size: 6rem; color: #cbd5e1; font-weight: 900;
-            text-shadow: 4px 4px 0 #000; pointer-events: none; 
-            animation: floatUp 2s ease-out forwards; z-index: 50; opacity: 0.8;
+            position: absolute; left: 50%; top: 50%; font-size: 5rem; font-weight: 900;
+            text-shadow: 4px 4px 0 #000; pointer-events: none; animation: floatUp 2s ease-out forwards; z-index: 50;
         }
 
-        /* Dice Styles */
-        .die-btn {
-            width: 80px; height: 80px;
-            display: flex; align-items: center; justify-content: center;
-            transition: all 0.3s ease;
-            opacity: 0.3; filter: grayscale(1); cursor: not-allowed; transform: scale(0.9);
+        .battle-controls {
+            position: fixed; bottom: 0; left: 0; w-full; 
+            background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(8px);
+            border-top: 1px solid rgba(255, 255, 255, 0.2); width: 100%;
+            padding: 1rem; display: flex; justify-content: center; align-items: center; gap: 2rem; z-index: 40;
         }
-        .die-active {
-            opacity: 1; filter: grayscale(0) drop-shadow(0 0 10px rgba(220, 38, 38, 0.5));
-            transform: scale(1.1); cursor: pointer; animation: pulse-glow 2s infinite;
+
+        .battle-d20 {
+            width: 80px; height: 80px; cursor: pointer; transition: transform 0.2s;
+            filter: drop-shadow(0 0 10px rgba(220, 38, 38, 0.5));
         }
-        .die-active:hover { transform: scale(1.2); }
-        @keyframes pulse-glow { 0%, 100% { filter: drop-shadow(0 0 5px rgba(220, 38, 38, 0.4)); } 50% { filter: drop-shadow(0 0 20px rgba(220, 38, 38, 0.9)); } }
-        @keyframes roll { 0% { transform: rotate(0deg); } 25% { transform: rotate(15deg); } 75% { transform: rotate(-15deg); } }
-        .rolling { animation: roll 0.6s infinite; opacity: 1; filter: grayscale(0); }
+        .battle-d20:active { transform: scale(0.9); }
+        .battle-d20.disabled { filter: grayscale(1); cursor: not-allowed; opacity: 0.5; }
         
-        /* Chat Scrollbar */
-        .scrollbar-hidden::-webkit-scrollbar { display: none; }
+        .battle-log { position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%); text-align: center; width: 100%; z-index: 45; pointer-events: none; }
+        .log-msg { background: rgba(0,0,0,0.7); color: #fbbf24; padding: 5px 15px; border-radius: 20px; font-size: 1.2rem; display: inline-block; }
+
+        #close-fight-btn { position: absolute; top: 20px; right: 20px; z-index: 100; background: transparent; border: none; color: white; font-size: 2rem; cursor: pointer; }
+
+        /* Next Button for Part 1 */
+        .btn-enter-gate {
+            margin-top: 2rem;
+            background: rgba(0,0,0,0.6);
+            color: #f59e0b;
+            border: 2px solid #f59e0b;
+            padding: 12px 32px;
+            font-family: 'Pirata One', cursive;
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.3);
+            z-index: 200;
+            pointer-events: auto;
+            border-radius: 8px;
+        }
+        .btn-enter-gate:hover {
+            background: #f59e0b;
+            color: black;
+            box-shadow: 0 0 25px rgba(245, 158, 11, 0.8);
+            transform: scale(1.05);
+        }
     </style>
 </head>
-<body class="h-screen w-screen flex flex-col relative bg-black">
+<body>
+    
+    <!-- === PART 1: Intro (React) === -->
+    <div id="root" class="scene-container active"></div>
 
-    <!-- === LAYER 1: THE VISUALS (Full Screen) === -->
-    <div class="absolute inset-0 flex z-0">
-        <!-- Hero (Left) -->
-        <div id="hero-panel" class="split-panel bg-slate-900 border-r border-black">
-            <img id="hero-img" src="" class="split-image" alt="Hero">
+    <!-- === PART 2: The Gates (React + Three) === -->
+    <div id="gate-root" class="scene-container"></div>
+
+    <!-- === PART 3: Tavern (Vanilla JS) === -->
+    <div id="sanctuary-wrapper">
+        <div id="game-container">
+            <img id="scene-image" src="" alt="Scene Background">
+            <div id="top-title-container"><h1 id="scene-title"></h1></div>
+            <div id="character-hud">
+                <div class="stat-line">STR: <span id="str-val" class="stat-val">0</span></div>
+                <div class="stat-line">DEX: <span id="dex-val" class="stat-val">0</span></div>
+                <div class="stat-line">INT: <span id="int-val" class="stat-val">0</span></div>
+                <div class="stat-line">CHA: <span id="cha-val" class="stat-val">0</span></div>
+            </div>
+            <div id="dialogue-area"><p id="dialogue-text">...</p></div>
+            <div id="choice-grid"></div>
+            <div id="controls-left" onclick="loadScene('hub')" title="Return to Tavern">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="32" height="32" stroke="#f59e0b">
+                    <line x1="19" y1="12" x2="5" y2="12"></line>
+                    <polyline points="12 19 5 12 12 5"></polyline>
+                </svg>
+            </div>
+            <div id="dice-toggle-btn" onclick="toggleDiceModal()" title="Open Dice Roller">
+                <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12.8 3.6a2 2 0 0 0-1.6 0l-7 4A2 2 0 0 0 3 9.4v5.2a2 2 0 0 0 1.2 1.8l7 4a2 2 0 0 0 1.6 0l7-4a2 2 0 0 0 1.2-1.8V9.4a2 2 0 0 0-1.2-1.8z"></path>
+                    <path d="m12 11.3 7.8-4.5"></path>
+                    <path d="m3 7.9 7.8 4.5v9"></path>
+                    <path d="m13.2 21.4-.4-9 7.8-4.5"></path>
+                </svg>
+            </div>
+            <div id="journal-btn" onclick="toggleJournal()" title="Open Story Journal">
+                <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                </svg>
+            </div>
         </div>
         
-        <!-- Enemy (Right) -->
-        <div id="enemy-panel" class="split-panel bg-slate-900 border-l border-black">
-            <img id="enemy-img" src="" class="split-image" alt="Enemy">
-        </div>
-    </div>
-
-    <!-- === LAYER 2: TOP HUD (Health & Status) === -->
-    <div class="absolute top-0 left-0 w-full p-4 z-20 flex justify-between items-start pointer-events-none">
-        
-        <!-- Player 1 Status -->
-        <div class="w-1/3 max-w-md pointer-events-auto">
-            <div class="flex items-end justify-between mb-1 text-shadow-sm px-1">
-                <span class="text-blue-300 font-bold text-lg tracking-widest drop-shadow-md">WARRIOR</span>
-                <span id="hero-hp-text" class="text-2xl font-bold text-white drop-shadow-md">50/50</span>
-            </div>
-            <div class="hp-track h-4 w-full rounded-sm overflow-hidden relative">
-                <div id="hero-bar" class="hp-fill bg-gradient-to-r from-blue-700 to-blue-500 h-full" style="width: 100%"></div>
-            </div>
-            <div class="flex gap-2 mt-2">
-                 <div id="p1-status" class="text-[10px] uppercase font-bold text-slate-400 bg-black/50 px-2 py-1 rounded border border-white/10">Connected</div>
+        <!-- Modals -->
+        <div id="journal-modal" onclick="toggleJournal()">
+            <div id="journal-content" onclick="event.stopPropagation()">
+                <h2>Your Tale</h2>
+                <div id="story-log"></div>
+                <button class="btn-choice" style="width:100%; margin-top:20px;" onclick="toggleJournal()">Close</button>
             </div>
         </div>
-
-        <!-- Center VS Marker -->
-        <div class="text-4xl font-black text-white/20 italic mt-2 drop-shadow-xl select-none">VS</div>
-
-        <!-- Player 2 Status -->
-        <div class="w-1/3 max-w-md pointer-events-auto text-right">
-            <div class="flex items-end justify-between mb-1 text-shadow-sm px-1 flex-row-reverse">
-                <span class="text-red-300 font-bold text-lg tracking-widest drop-shadow-md">OGRE</span>
-                <span id="enemy-hp-text" class="text-2xl font-bold text-white drop-shadow-md">45/45</span>
+        <div id="memory-modal">
+            <div id="memory-header">
+                <button id="memory-back-btn" onclick="closeMemory()">Back</button>
+                <h2 id="memory-title">A Fading Memory</h2>
+                <div style="width: 80px;"></div>
             </div>
-            <div class="hp-track h-4 w-full rounded-sm overflow-hidden relative">
-                <div id="enemy-bar" class="hp-fill bg-gradient-to-l from-red-700 to-red-500 h-full float-right" style="width: 100%"></div>
-            </div>
-            <div class="flex gap-2 mt-2 justify-end">
-                 <div id="p2-status" class="text-[10px] uppercase font-bold text-slate-400 bg-black/50 px-2 py-1 rounded border border-white/10">Waiting...</div>
+            <div id="memory-img-container"><img id="memory-img" src="" alt="Loading memory..."></div>
+        </div>
+        <div id="dice-modal-overlay">
+            <button id="close-dice-btn" onclick="toggleDiceModal()">&times;</button>
+            <div id="dice-widget" onclick="event.stopPropagation()">
+                <div id="widget-ui">
+                    <div class="dice-header">
+                        <div class="dice-title">Polyhedral Engine</div>
+                        <div id="color-picker-wrapper">
+                            <button id="current-color-btn" title="Change Dice Color"></button>
+                            <div id="color-dropdown">
+                                <button class="color-option" data-color="0x3b82f6" style="background: #3b82f6;"></button>
+                                <button class="color-option" data-color="0xef4444" style="background: #ef4444;"></button>
+                                <button class="color-option" data-color="0x22c55e" style="background: #22c55e;"></button>
+                                <button class="color-option" data-color="0xa855f7" style="background: #a855f7;"></button>
+                                <button class="color-option" data-color="0xeab308" style="background: #eab308;"></button>
+                                <button class="color-option" data-color="0x334155" style="background: #334155;"></button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="result-display">20</div>
+                    <div class="controls-area">
+                        <div class="dice-selector">
+                            <button class="die-btn" id="btn-d4" data-sides="4">D4</button>
+                            <button class="die-btn" id="btn-d6" data-sides="6">D6</button>
+                            <button class="die-btn" id="btn-d8" data-sides="8">D8</button>
+                            <button class="die-btn" id="btn-d10" data-sides="10">D10</button>
+                            <button class="die-btn" id="btn-d12" data-sides="12">D12</button>
+                            <button class="die-btn active" id="btn-d20" data-sides="20">D20</button>
+                        </div>
+                        <button id="roll-btn">Roll Dice</button>
+                    </div>
+                </div>
+                <div id="canvas-container"></div>
             </div>
         </div>
 
-    </div>
-
-    <!-- === LAYER 3: BOTTOM DASHBOARD (Chat & Controls) === -->
-    <div class="absolute bottom-0 w-full z-30 hud-panel h-32 md:h-40 flex items-center justify-between px-4 md:px-8">
-        
-        <!-- LEFT: Chat Module (Embedded) -->
-        <div class="w-1/3 h-full py-3 flex flex-col gap-2 max-w-sm">
-            <div id="chat-messages" class="flex-1 overflow-y-auto scrollbar-hidden text-xs md:text-sm font-sans space-y-1 pr-2">
-                <div class="text-slate-500 italic text-[10px]">Entering the arena...</div>
-            </div>
-            <form id="chat-form" class="flex gap-2 h-8" onsubmit="battle.sendChat(event)">
-                <input type="text" id="chat-input" class="flex-1 bg-black/40 border border-slate-600 rounded px-2 text-xs text-white focus:outline-none focus:border-yellow-600 focus:bg-black/60 transition-colors" placeholder="Say something..." autocomplete="off">
-                <button type="submit" class="bg-slate-800 hover:bg-slate-700 text-white px-3 rounded text-xs font-bold border border-slate-600">
-                    <i data-lucide="send" class="w-3 h-3"></i>
-                </button>
-            </form>
-        </div>
-
-        <!-- CENTER: Action Deck -->
-        <div class="flex-1 flex flex-col items-center justify-center h-full relative">
+        <!-- NEW: FIGHT WIDGET MODAL -->
+        <div id="fight-modal">
+            <button id="close-fight-btn" onclick="toggleFightModal()">&times;</button>
             
-            <!-- Turn Banner -->
-            <div class="absolute -top-5">
-                <div id="turn-banner" class="bg-black text-white px-6 py-1 rounded-t-lg font-bold uppercase tracking-widest text-[10px] border-t border-x border-white/20 shadow-lg">
-                    Initializing...
+            <div class="battle-split-container">
+                <!-- HERO SIDE -->
+                <div id="battle-hero-panel" class="battle-panel active-turn">
+                    <img id="battle-hero-img" src="https://image.pollinations.ai/prompt/fantasy%20warrior%20portrait%20rugged%20face%20scarred%20armor%20heroic%20lighting%201970s%20dnd%20art%20style%20oil%20painting?width=600&height=1024&nologin=true&seed=99" class="battle-img" alt="Warrior">
+                    <div class="hp-container">
+                        <div class="flex justify-between text-xs font-bold mb-1 text-blue-300">
+                            <span>WARRIOR</span> <span id="hero-hp-text">50/50</span>
+                        </div>
+                        <div class="hp-track"><div id="hero-bar" class="hp-fill bg-blue-600" style="width: 100%"></div></div>
+                    </div>
+                </div>
+
+                <!-- ENEMY SIDE -->
+                <div id="battle-enemy-panel" class="battle-panel inactive-turn">
+                    <img id="battle-enemy-img" src="https://image.pollinations.ai/prompt/fearsome%20ogre%20portrait%20fantasy%20art%201970s%20style?width=600&height=1024&nologin=true&seed=505" class="battle-img" alt="Ogre">
+                    <div class="hp-container">
+                        <div class="flex justify-between text-xs font-bold mb-1 text-red-300">
+                            <span>OGRE</span> <span id="enemy-hp-text">45/45</span>
+                        </div>
+                        <div class="hp-track"><div id="enemy-bar" class="hp-fill bg-red-600" style="width: 100%"></div></div>
+                    </div>
                 </div>
             </div>
 
-            <!-- The Dice -->
-            <div id="d20-btn" class="die-btn" onclick="battle.sendAttack()">
-                <svg viewBox="0 0 100 100" class="overflow-visible w-full h-full drop-shadow-md">
-                    <path d="M50 5 L92 28 L92 72 L50 95 L8 72 L8 28 Z" class="fill-red-900 stroke-red-400 stroke-2" />
-                    <path d="M50 5 L28 35 M50 5 L72 35 M92 28 L72 35 M92 72 L72 35 M92 72 L50 75 M50 95 L50 75 M8 72 L50 75 M8 72 L28 35 M8 28 L28 35 M8 28 L50 5 M28 35 L72 35 L50 75 Z" class="fill-none stroke-red-200 stroke-1" />
-                    <text x="50" y="62" text-anchor="middle" class="fill-white font-sans font-black text-2xl" style="font-family: sans-serif">20</text>
-                </svg>
+            <div class="battle-log">
+                <span id="battle-status" class="log-msg">YOUR TURN</span>
             </div>
-            <div id="log-text" class="text-xs text-slate-400 mt-2 font-sans tracking-wide">Roll for initiative</div>
-        </div>
 
-        <!-- RIGHT: Utility (Reset/Info) -->
-        <div class="w-1/3 h-full flex items-center justify-end">
-            <div class="text-right">
-                <div id="role-display" class="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-1">Spectator</div>
-                <div class="text-[10px] text-slate-500">Connected to Realm</div>
+            <div class="battle-controls">
+                <div class="text-white font-bold text-xl mr-4">ATTACK</div>
+                <div id="battle-d20-btn" class="battle-d20" onclick="battleSystem.heroAttack()">
+                    <svg viewBox="0 0 100 100" class="w-full h-full overflow-visible">
+                        <path d="M50 5 L92 28 L92 72 L50 95 L8 72 L8 28 Z" class="fill-red-900 stroke-red-500 stroke-2" />
+                        <text x="50" y="62" text-anchor="middle" class="fill-white font-sans font-black text-2xl">20</text>
+                    </svg>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- === OVERLAYS (Game Over / Start) === -->
-    <div id="overlay" class="absolute inset-0 z-50 bg-black/90 flex flex-col items-center justify-center backdrop-blur-md hidden">
-        <h1 class="text-7xl font-black text-white font-old animate-pulse mb-4 tracking-tighter" id="overlay-title">GAME OVER</h1>
-        <p class="text-slate-400 font-sans text-sm tracking-[0.3em] font-bold border border-white/10 px-8 py-3 rounded-full bg-white/5" id="overlay-sub">THE BATTLE IS FINISHED</p>
-        <button id="reset-btn" onclick="battle.resetGame()" class="mt-12 px-8 py-3 bg-red-900 hover:bg-red-800 rounded-lg text-white font-bold tracking-widest border border-red-500 shadow-[0_0_20px_rgba(220,38,38,0.4)] transition-all transform hover:scale-105 hidden">
-            NEW BATTLE
-        </button>
-    </div>
-
+    <!-- === LOGIC: TRANSITION UTILS === -->
     <script>
-        const RAILWAY_URL = "https://fight-tavern-production.up.railway.app";
-        
-        const IMAGES = {
-            warrior: "https://image.pollinations.ai/prompt/fantasy%20warrior%20portrait%20rugged%20face%20scarred%20armor%20heroic%20lighting%201970s%20dnd%20art%20style%20oil%20painting?width=600&height=1024&nologin=true&seed=99",
-            ogre: "https://image.pollinations.ai/prompt/fearsome%20ogre%20portrait%20fantasy%20art%201970s%20style?width=600&height=1024&nologin=true&seed=505",
+        window.transitionIntroToGate = () => {
+            document.getElementById('root').classList.remove('active');
+            setTimeout(() => {
+                document.getElementById('gate-root').classList.add('active');
+                window.dispatchEvent(new Event('resize'));
+            }, 500);
         };
 
-        const socket = io(RAILWAY_URL);
+        window.transitionGateToTavern = () => {
+            document.getElementById('gate-root').classList.remove('active');
+            setTimeout(() => {
+                const sanctuary = document.getElementById('sanctuary-wrapper');
+                sanctuary.classList.add('active');
+                window.dispatchEvent(new Event('resize'));
+            }, 500);
+        };
+    </script>
 
-        const battle = {
-            myRole: null, 
-            isMyTurn: false,
+    <!-- === LOGIC: Part 1 (Intro) === -->
+    <script type="text/babel">
+        // ... (Intro React Code remains unchanged) ...
+        const { useState, useEffect, useRef } = React;
+        const STORY_STEPS = [
+            { id: 'opening', src: '', color: 'from-black to-zinc-900', title: "Greetings", narration: "Greetings, traveler. You’ve wandered far to find this seat by my hearth. Let us pull back the veil and reveal the game we are about to play." },
+            { id: 'dm-visible', src: 'DMmagic.png', color: 'from-purple-900 to-indigo-900', title: "The Voice in the Dark", narration: "I am your Dungeon Master, the architect of your triumphs and the grinning devil on your shoulder. I weave the \"invisible architecture\" of this journey, ensuring that every choice you make has a profound consequence." },
+            { id: 'the-map', src: 'map.png', color: 'from-amber-900 to-orange-900', title: "The Eye of the Storm", narration: "Look upon the map. Haven’s Keep is the center. It is the \"safe harbor\" in a sea of chaos, and it is exactly where your story begins." },
+            { id: 'dice-table', src: 'dice.png', color: 'from-blue-900 to-slate-900', title: "The Engines of Fate", narration: "To navigate this world, you must master these Tools of Fate. These many-sided dice determine how hard you hit or how deep the world bites back." },
+            { id: 'd20-squirrels', src: 'dice20.png', color: 'from-emerald-900 to-teal-900', title: "The Die of Destiny", narration: "But this—the d20—is the most important object in your universe. It decides if you meet the Difficulty Class (DC) required to stay alive." },
+            { id: 'dm-fading', src: 'DMswirls.png', color: 'from-gray-900 to-black', title: "The Threshold of Haven", narration: "You stumble through the dark, the air tasting of ozone and wet earth, until the silhouette of Haven’s Keep looms out of the deluge like a jagged tooth. You are at your breaking point." }
+        ];
 
-            init() {
-                document.getElementById('hero-img').src = IMAGES.warrior;
-                document.getElementById('enemy-img').src = IMAGES.ogre;
-                this.setupSocket();
-                lucide.createIcons();
+        function ImageWithFallback({ src, fallbackColor }) {
+            const [error, setError] = useState(false);
+            if (error || !src) return <div className={`w-full h-full bg-gradient-to-br ${fallbackColor}`} />;
+            return <img src={src} alt="" className="w-full h-full object-cover" onError={() => setError(true)} />;
+        }
+
+        function IntroApp() {
+            const [progress, setProgress] = useState(0);
+            const [isPortrait, setIsPortrait] = useState(false);
+            
+            useEffect(() => {
+                const check = () => setIsPortrait(window.innerHeight > window.innerWidth);
+                check(); window.addEventListener('resize', check); return () => window.removeEventListener('resize', check);
+            }, []);
+
+            const handleWheel = (e) => {
+                if(isPortrait) return;
+                setProgress(prev => Math.min(Math.max(prev + e.deltaY * 0.002, 0), STORY_STEPS.length - 1));
+            };
+
+            const snapToNearest = (idx) => setProgress(idx);
+
+            return (
+                <div className="fixed inset-0 bg-black overflow-hidden font-serif select-none" onWheel={handleWheel}>
+                    {isPortrait && <div className="fixed inset-0 z-50 bg-black flex items-center justify-center p-8 text-amber-500 font-pirata text-2xl text-center">Rotate Device to Begin</div>}
+                    
+                    {!isPortrait && (
+                        <div className="absolute inset-0 w-full h-full">
+                            {STORY_STEPS.map((step, index) => {
+                                const rel = progress - index;
+                                if (rel < -1 || rel > 1) return null;
+                                const opacity = 1 - Math.abs(rel);
+                                const scale = 1 + (rel * 0.2);
+                                
+                                return (
+                                    <div key={step.id} className="absolute inset-0 w-full h-full flex items-center justify-center pointer-events-none" style={{ opacity }}>
+                                        <div className="relative w-full h-full transition-transform duration-75" style={{ transform: `scale(${scale})` }}>
+                                            <ImageWithFallback src={step.src} fallbackColor={step.color} />
+                                        </div>
+                                        <div className="absolute bottom-0 left-0 right-0 p-8 pb-16 bg-gradient-to-t from-black via-black/80 to-transparent text-center">
+                                            <div className="max-w-4xl mx-auto space-y-4">
+                                                <h2 className="text-4xl md:text-6xl text-amber-500 font-pirata drop-shadow-lg">{step.title}</h2>
+                                                <p className="text-xl md:text-2xl text-gray-200 font-serif leading-relaxed text-justify">{step.narration}</p>
+                                                {step.id === 'dm-fading' && (
+                                                    <div className="pt-6 pointer-events-auto">
+                                                        <button onClick={window.transitionIntroToGate} className="btn-enter-gate animate-pulse">Approach the Gates</button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            
+                            <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-4 pointer-events-auto">
+                                {STORY_STEPS.map((_, i) => (
+                                    <button key={i} onClick={() => snapToNearest(i)} className={`w-3 h-3 rounded-full border-2 ${Math.round(progress)===i ? 'bg-amber-500 border-amber-500' : 'border-white/50'}`} />
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+        
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<IntroApp />);
+    </script>
+
+    <!-- === LOGIC: Part 2 (The Gates) === -->
+    <script type="text/babel" data-type="module">
+        // ... (Gate Widget Code remains unchanged) ...
+        import * as THREE from 'three';
+        import * as CANNON from 'cannon-es';
+        const { useState, useEffect, useRef, useLayoutEffect } = React;
+
+        function DiceWidget({ onRollComplete, onClose }) {
+            const containerRef = useRef(null);
+            const rollBtnRef = useRef(null);
+            const resultDisplayRef = useRef(null);
+            const ctx = useRef({ isRolling: false });
+
+            useLayoutEffect(() => {
+                if(!containerRef.current) return;
+                const width = containerRef.current.clientWidth;
+                const height = containerRef.current.clientHeight;
+
+                const scene = new THREE.Scene();
+                scene.background = new THREE.Color(0xf1f5f9);
+                const camera = new THREE.PerspectiveCamera(35, width/height, 0.1, 100);
+                camera.position.set(0, 18, 9);
+                camera.lookAt(0, 0, 0);
+
+                const renderer = new THREE.WebGLRenderer({ antialias: true });
+                renderer.setSize(width, height);
+                renderer.shadowMap.enabled = true;
+                containerRef.current.appendChild(renderer.domElement);
+
+                const world = new CANNON.World();
+                world.gravity.set(0, -50, 0);
+                const mat = new CANNON.Material();
+                world.addContactMaterial(new CANNON.ContactMaterial(mat, mat, { friction: 0.3, restitution: 0.5 }));
+
+                scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+                const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+                sun.position.set(5, 12, 5);
+                sun.castShadow = true;
+                scene.add(sun);
+
+                const groundBody = new CANNON.Body({ mass: 0, material: mat });
+                groundBody.addShape(new CANNON.Plane());
+                groundBody.quaternion.setFromEuler(-Math.PI/2, 0, 0);
+                world.addBody(groundBody);
+
+                const addWall = (x, z, ry) => {
+                    const b = new CANNON.Body({ mass: 0, material: mat });
+                    b.addShape(new CANNON.Box(new CANNON.Vec3(10, 10, 1)));
+                    b.position.set(x, 10, z); b.quaternion.setFromEuler(0, ry, 0);
+                    world.addBody(b);
+                };
+                addWall(0, -3.5, 0); addWall(0, 3.5, 0); addWall(-5, 0, Math.PI/2); addWall(5, 0, Math.PI/2);
+
+                const geo = new THREE.IcosahedronGeometry(1.5);
+                const dieMesh = new THREE.Group();
+                const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x3b82f6, flatShading: true }));
+                mesh.castShadow = true; dieMesh.add(mesh);
+
+                const pos = geo.attributes.position;
+                const vertices = [], faces = [], logicalFaces = [];
+                for(let i=0; i<pos.count; i++) vertices.push(new CANNON.Vec3(pos.getX(i), pos.getY(i), pos.getZ(i)));
+                for(let i=0; i<pos.count; i+=3) faces.push([i, i+1, i+2]);
+
+                for(let i=0; i<pos.count; i+=3) {
+                    const a = new THREE.Vector3().fromBufferAttribute(pos, i);
+                    const b = new THREE.Vector3().fromBufferAttribute(pos, i+1);
+                    const c = new THREE.Vector3().fromBufferAttribute(pos, i+2);
+                    const n = new THREE.Vector3().crossVectors(new THREE.Vector3().subVectors(c,b), new THREE.Vector3().subVectors(a,b)).normalize();
+                    if(!logicalFaces.find(lf => lf.normal.dot(n) > 0.99)) {
+                        const canvas = document.createElement('canvas'); canvas.width=64; canvas.height=64;
+                        const ctx2d = canvas.getContext('2d'); ctx2d.fillStyle='white'; ctx2d.font='bold 40px Arial'; ctx2d.textAlign='center'; ctx2d.textBaseline='middle';
+                        ctx2d.fillText(logicalFaces.length+1, 32, 32);
+                        const p = new THREE.Mesh(new THREE.PlaneGeometry(0.8,0.8), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(canvas), transparent:true, polygonOffset:true, polygonOffsetFactor:-1 }));
+                        const center = new THREE.Vector3().add(a).add(b).add(c).multiplyScalar(1/3);
+                        p.position.copy(center).add(n.clone().multiplyScalar(0.01)); p.lookAt(center.clone().add(n));
+                        dieMesh.add(p);
+                        logicalFaces.push({ normal: n, value: logicalFaces.length + 1 });
+                    }
+                }
+
+                const body = new CANNON.Body({ mass: 5, shape: new CANNON.ConvexPolyhedron({ vertices, faces }), material: mat });
+                body.position.set(0, 4, 0); world.addBody(body); scene.add(dieMesh);
+
+                ctx.current = { scene, world, body, dieMesh, logicalFaces, renderer, isRolling: false };
+
+                let animId;
+                const animate = () => {
+                    world.step(1/60);
+                    dieMesh.position.copy(body.position); dieMesh.quaternion.copy(body.quaternion);
+                    renderer.render(scene, camera);
+                    animId = requestAnimationFrame(animate);
+                };
+                animate();
+
+                return () => { 
+                    cancelAnimationFrame(animId); 
+                    if(renderer.domElement && containerRef.current) containerRef.current.removeChild(renderer.domElement);
+                    renderer.dispose(); 
+                };
+            }, []);
+
+            const roll = () => {
+                const c = ctx.current; if(c.isRolling) return;
+                c.isRolling = true; rollBtnRef.current.disabled = true;
+                resultDisplayRef.current.classList.remove('visible');
+                c.body.position.set(0, 6, 0);
+                c.body.applyImpulse(new CANNON.Vec3((Math.random()-.5)*15, -10, (Math.random()-.5)*15), new CANNON.Vec3(0,0,0));
+                c.body.angularVelocity.set(Math.random()*25, Math.random()*25, Math.random()*25);
+
+                const check = setInterval(() => {
+                    if(c.body.velocity.length() < 0.1 && c.body.angularVelocity.length() < 0.1) {
+                        clearInterval(check);
+                        const q = new THREE.Quaternion().copy(c.body.quaternion);
+                        let best = -Infinity, res = 1;
+                        c.logicalFaces.forEach(f => {
+                            const d = f.normal.clone().applyQuaternion(q).dot(new THREE.Vector3(0,1,0));
+                            if(d > best) { best = d; res = f.value; }
+                        });
+                        resultDisplayRef.current.innerText = res; resultDisplayRef.current.classList.add('visible');
+                        c.isRolling = false; rollBtnRef.current.disabled = false;
+                        setTimeout(() => onRollComplete(res), 1200);
+                    }
+                }, 100);
+            };
+
+            return (
+                <div className="fixed inset-0 z-[600] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                    <div className="dice-widget-container">
+                        <div id="widget-ui">
+                            <div className="text-center pb-2 border-b border-black/5">
+                                <span className="text-[0.7rem] uppercase font-bold tracking-widest text-slate-500">Polyhedral Engine</span>
+                                <button onClick={onClose} className="absolute top-3 right-3 text-slate-400">✕</button>
+                            </div>
+                            <div id="result-display" ref={resultDisplayRef}>20</div>
+                            <div className="controls-area">
+                                <div className="flex justify-between bg-black/5 p-1 rounded-lg">
+                                    {['D4','D6','D8','D10','D12','D20'].map(d => (
+                                        <span key={d} className={`text-[0.65rem] font-bold p-1 px-2 rounded ${d==='D20'?'bg-white text-blue-600 shadow-sm':'text-slate-400'}`}>{d}</span>
+                                    ))}
+                                </div>
+                                <button id="roll-btn" ref={rollBtnRef} onClick={roll}>Cast the Die</button>
+                            </div>
+                        </div>
+                        <div ref={containerRef} className="w-full h-full"></div>
+                    </div>
+                </div>
+            );
+        }
+
+        function GateApp() {
+            const [gameState, setGameState] = useState('intro');
+            const [mode, setMode] = useState('normal');
+            const [rolls, setRolls] = useState([]);
+            const [showDice, setShowDice] = useState(false);
+
+            const narrative = {
+                intro: "The iron-bound gates of Haven’s Keep stand before you, locked tight against the blizzard. Your body is failing; this is your final chance to find warmth. The DC is 10.",
+                progress: `The first stone reveals ${rolls[0]}. One more roll to determine your fate under ${mode}.`,
+                success: "Victory! With a final result strong enough to move the bars, you heave the gates open. The warmth of the keep spills out, saving you from the storm.",
+                fail: "Defeat. The die settles on a number too low to matter. Your strength gives out, the gates remain shut, and the cold embraces you one last time."
+            };
+
+            const handleRoll = (res) => {
+                const nextRolls = [...rolls, res]; setRolls(nextRolls);
+                if (mode === 'normal' || nextRolls.length === 2) {
+                    const final = mode === 'advantage' ? Math.max(...nextRolls) : mode === 'disadvantage' ? Math.min(...nextRolls) : nextRolls[0];
+                    setGameState(final >= 10 ? 'success' : 'fail'); setShowDice(false);
+                } else {
+                    setGameState('progress'); setShowDice(false);
+                    setTimeout(() => setShowDice(true), 500);
+                }
+            };
+
+            return (
+                <div className="h-full w-full flex items-center justify-center p-4">
+                    <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto custom-scroll p-4 md:p-8 space-y-8 text-center">
+                        <h1 className="text-4xl md:text-7xl font-pirata text-amber-500 tracking-wider uppercase text-shadow-heavy drop-shadow-xl">
+                            {gameState === 'success' ? 'Sanctuary Found' : gameState === 'fail' ? 'Frozen Fate' : 'The Final Threshold'}
+                        </h1>
+                        <p className="text-xl md:text-2xl text-gray-100 leading-relaxed font-serif min-h-[60px] pb-6 text-shadow-heavy max-w-2xl mx-auto">{narrative[gameState]}</p>
+
+                        {gameState === 'intro' && (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mt-4">
+                                {[
+                                    { id:'advantage', t:'Advantage', desc:'Roll twice. Keep Highest.', colors:'from-emerald-900/90 to-emerald-950/90 border-emerald-500/50 text-emerald-400', icon: '▲' },
+                                    { id:'normal', t:'Normal', desc:'Roll once. Trust fate.', colors:'from-indigo-900/90 to-indigo-950/90 border-indigo-500/50 text-indigo-400', icon: '●' },
+                                    { id:'disadvantage', t:'Disadvantage', desc:'Roll twice. Keep Lowest.', colors:'from-red-900/90 to-red-950/90 border-red-500/50 text-red-400', icon: '▼' }
+                                ].map(opt => (
+                                    <button key={opt.id} onClick={() => { setMode(opt.id); setRolls([]); setShowDice(true); }} className={`relative p-4 md:p-6 rounded-2xl border-2 shadow-xl bg-gradient-to-br ${opt.colors} hover:scale-105 transition-all`}>
+                                        <div className="text-3xl mb-2">{opt.icon}</div>
+                                        <h3 className="font-pirata text-2xl tracking-wide">{opt.t}</h3>
+                                        <p className="text-sm font-bold mt-1">{opt.desc}</p>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {rolls.length > 0 && (
+                            <div className="flex justify-center gap-8 py-4 items-center">
+                                {rolls.map((r, i) => {
+                                    const isFinished = gameState === 'success' || gameState === 'fail';
+                                    let isDiscarded = false, isChosen = false;
+                                    if (isFinished) {
+                                        if (rolls.length > 1) {
+                                            isDiscarded = mode === 'advantage' ? r < Math.max(...rolls) : r > Math.min(...rolls);
+                                            isChosen = !isDiscarded;
+                                        } else isChosen = true;
+                                    }
+                                    return (
+                                        <div key={i} className={`relative flex items-center justify-center transition-all duration-500 ${isDiscarded ? 'opacity-60 scale-90 grayscale' : ''} ${isChosen && isFinished ? 'scale-110 drop-shadow' : ''}`}>
+                                            <div className={`w-16 h-16 rounded-full border-4 flex items-center justify-center text-3xl font-pirata bg-black/40 ${r>=10?'border-emerald-500 text-emerald-400':'border-red-500 text-red-400'}`}>{r}</div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {gameState === 'success' && (
+                            <button onClick={window.transitionGateToTavern} className="w-full max-w-md mx-auto block text-amber-500 font-pirata text-3xl uppercase tracking-widest mt-4 border-2 border-amber-500/50 bg-black/60 backdrop-blur p-3 rounded-xl hover:bg-black/80 hover:border-amber-400 shadow-xl animate-pulse">
+                                Open the Gates
+                            </button>
+                        )}
+                        {gameState === 'fail' && (
+                            <button onClick={() => setGameState('intro')} className="w-full max-w-md mx-auto block text-red-500 font-pirata text-3xl uppercase tracking-widest mt-4 border-2 border-red-500/50 bg-black/60 backdrop-blur p-3 rounded-xl hover:bg-black/80 hover:border-red-400 shadow-xl">
+                                ↻ Try Again
+                            </button>
+                        )}
+                    </div>
+                    {showDice && <DiceWidget onRollComplete={handleRoll} onClose={() => setShowDice(false)} />}
+                </div>
+            );
+        }
+
+        const gateRoot = ReactDOM.createRoot(document.getElementById('gate-root'));
+        gateRoot.render(<GateApp />);
+    </script>
+
+    <!-- === LOGIC: Part 3 (Tavern & Battle System) === -->
+    <script>
+        const gameData = [
+            { id: 0, title: "The Storm Approaches", image: "TownStorm.png", text: "The storm broke just as the fortress town of Blackwood came into view, its towers silhouetted against constant lightning strikes.", anim: "pan-zoom-storm 10s ease-out forwards" },
+            { id: 1, title: "The Stone Gates", image: "GateNight.png", text: "The driving rain turned the road into slick mud as you rushed toward the intimidating stone gate, seeking respite from the deluge.", anim: "gentle-push 10s ease-in-out forwards" },
+            { id: 2, title: "The Flickering Sign", image: "TavernNight.png", text: "Your goal became the glowing oil-lamp sign of 'The Weary Traveler Inn & Tavern', a promise of comfort in the dark.", anim: "gentle-pan 10s ease-in-out forwards" },
+            { id: 3, title: "The Weary Traveler", image: "Tavern.png", text: "The main room is alive with warmth. You stand at the threshold, considering your options.", isHub: true, anim: "gentle-push 15s ease-in-out forwards" }
+        ];
+
+        const characterStats = { STR: 0, DEX: 0, INT: 0, CHA: 0 };
+        const questLog = { bartho: 'pending', elara: 'pending', table: 'pending', stranger: 'pending' };
+        const questMemories = { bartho: null, elara: null, table: null, stranger: null };
+        let activeStat = null;
+        let statRolls = []; 
+        let isGeneratingStat = false;
+        let isSkillCheck = false;
+        let activeDC = 10;
+        let activeSuccessScene = '';
+        let activeFailScene = '';
+        let activeQuestKey = '';
+
+        // --- MULTIPLAYER BATTLE SYSTEM ---
+        const RAILWAY_URL = "https://fight-tavern-production.up.railway.app";
+        let socket = null;
+        let isMultiplayerActive = false;
+        let myRole = 'spectator';
+
+        function initSocket() {
+            if (socket) return; // Already connected
+            
+            socket = io(RAILWAY_URL);
+            
+            socket.on('connect', () => {
+                console.log("Connected to Battle Server");
+            });
+
+            socket.on('welcome', (data) => {
+                myRole = data.role;
+                battleSystem.updateState(data.state);
+                
+                // Heuristic: If I am Enemy or Spectator, someone else (Hero) is likely here.
+                // If I am Hero, I wait for a join event.
+                if (myRole !== 'hero') {
+                    activateLiveButton();
+                }
+            });
+
+            socket.on('player_joined', (data) => {
+                activateLiveButton();
+            });
+
+            socket.on('game_update', (data) => {
+                battleSystem.updateState(data.state);
+                if(data.action) battleSystem.handleAction(data.action);
+                if(data.reset) {
+                    document.getElementById('battle-status').innerText = "NEW GAME";
+                    document.getElementById('battle-status').style.color = '#fbbf24';
+                }
+            });
+        }
+
+        function activateLiveButton() {
+            isMultiplayerActive = true;
+            // If we are currently in the hub, refresh the buttons to show the green state
+            if (imgElement.src.includes('Tavern.png') && document.getElementById('choice-grid').style.display !== 'none') {
+                loadScene('hub'); 
+            }
+        }
+
+        const battleSystem = {
+            state: {
+                hero: { hp: 50, max: 50, ac: 15, name: 'Warrior', dmgDie: 8, dmgMod: 2 },
+                enemy: { hp: 45, max: 45, ac: 12, name: 'Ogre', dmgDie: 6, dmgMod: 2 },
+                turn: 'hero',
+                gameOver: false
             },
 
-            setupSocket() {
-                socket.on('connect', () => {
-                   // Connection logic handled by 'welcome'
-                });
-
-                socket.on('welcome', (data) => {
-                    this.myRole = data.role;
-                    let roleText = "SPECTATING";
-                    if (this.myRole === 'hero') roleText = "YOU ARE THE WARRIOR";
-                    if (this.myRole === 'enemy') roleText = "YOU ARE THE OGRE";
-                    document.getElementById('role-display').innerText = roleText;
-                    this.updateUI(data.state);
-                });
-
-                socket.on('game_update', (data) => {
-                    this.updateUI(data.state);
-                    if (data.action) this.playActionAnimation(data.action);
-                    if (data.reset) document.getElementById('overlay').classList.add('hidden');
-                });
-
-                socket.on('chat_message', (data) => this.addChatMessage(data));
+            reset() {
+                if (socket) socket.emit('reset_game');
             },
 
-            sendAttack() {
-                if (!this.isMyTurn) return;
-                document.getElementById('d20-btn').classList.add('rolling');
+            heroAttack() {
+                if (!socket) return;
+                // Animation feedback immediately
+                const btn = document.getElementById('battle-d20-btn');
+                btn.style.transform = 'rotate(360deg)';
+                setTimeout(() => btn.style.transform = 'rotate(0deg)', 300);
+                
+                // Send to server
                 socket.emit('attack');
             },
 
-            sendChat(e) {
-                e.preventDefault();
-                const input = document.getElementById('chat-input');
-                const msg = input.value.trim();
-                if (!msg) return;
-                socket.emit('send_chat', msg);
-                input.value = '';
+            updateState(newState) {
+                this.state = newState;
+                this.updateUI();
             },
 
-            addChatMessage(data) {
-                const list = document.getElementById('chat-messages');
-                const el = document.createElement('div');
-                let colorClass = "text-slate-500";
-                let name = "Spectator";
-                
-                if (data.role === 'hero') { colorClass = "text-blue-400"; name = "WARRIOR"; }
-                if (data.role === 'enemy') { colorClass = "text-red-400"; name = "OGRE"; }
-                
-                el.innerHTML = `<span class="font-bold text-[10px] ${colorClass}">${name}</span> <span class="text-slate-300 ml-1">${data.text}</span>`;
-                list.appendChild(el);
-                list.scrollTop = list.scrollHeight;
-            },
-
-            resetGame() {
-                socket.emit('reset_game');
-            },
-
-            updateUI(state) {
-                // Update HP Texts
-                document.getElementById('hero-hp-text').innerText = `${state.hero.hp}/${state.hero.max}`;
-                document.getElementById('enemy-hp-text').innerText = `${state.enemy.hp}/${state.enemy.max}`;
+            updateUI() {
+                const s = this.state;
                 
                 // Update Bars
-                const heroPct = (state.hero.hp / state.hero.max) * 100;
-                const enemyPct = (state.enemy.hp / state.enemy.max) * 100;
-                document.getElementById('hero-bar').style.width = `${heroPct}%`;
-                document.getElementById('enemy-bar').style.width = `${enemyPct}%`;
+                const updateBar = (role, cur, max) => {
+                    const pct = Math.max(0, (cur / max) * 100);
+                    document.getElementById(`${role}-hp-text`).innerText = `${cur}/${max}`;
+                    document.getElementById(`${role}-bar`).style.width = `${pct}%`;
+                };
+                updateBar('hero', s.hero.hp, s.hero.max);
+                updateBar('enemy', s.enemy.hp, s.enemy.max);
 
-                if (state.gameOver) {
-                    this.showGameOver(state);
-                    return;
-                }
-
-                // Turn Logic
-                const turnBanner = document.getElementById('turn-banner');
-                const d20Btn = document.getElementById('d20-btn');
-                this.isMyTurn = (this.myRole === state.turn);
-
-                // Expand/Contract Panels based on turn
-                if (state.turn === 'hero') {
-                    document.getElementById('hero-panel').className = "split-panel active-turn bg-slate-900 border-r border-white/20";
-                    document.getElementById('enemy-panel').className = "split-panel inactive-turn bg-slate-900 border-l border-black";
-                } else {
-                    document.getElementById('hero-panel').className = "split-panel inactive-turn bg-slate-900 border-r border-black";
-                    document.getElementById('enemy-panel').className = "split-panel active-turn bg-slate-900 border-l border-white/20";
-                }
-
-                d20Btn.classList.remove('rolling');
-                if (this.isMyTurn) {
-                    turnBanner.innerText = "YOUR TURN";
-                    turnBanner.className = "bg-yellow-600 text-black px-6 py-1 rounded-t-lg font-bold uppercase tracking-widest text-[10px] border-t border-x border-yellow-400 shadow-[0_-5px_15px_rgba(202,138,4,0.4)] animate-pulse absolute -top-5";
-                    d20Btn.classList.add('die-active');
-                    document.getElementById('log-text').innerText = "Tap the D20 to attack!";
-                    document.getElementById('log-text').className = "text-xs text-yellow-400 mt-2 font-sans tracking-wide font-bold";
-                } else {
-                    const who = state.turn === 'hero' ? "WARRIOR" : "OGRE";
-                    turnBanner.innerText = `${who} IS ATTACKING`;
-                    turnBanner.className = "bg-slate-800 text-slate-400 px-6 py-1 rounded-t-lg font-bold uppercase tracking-widest text-[10px] border-t border-x border-slate-600 absolute -top-5";
-                    d20Btn.classList.remove('die-active');
-                    document.getElementById('log-text').innerText = "Waiting for opponent...";
-                    document.getElementById('log-text').className = "text-xs text-slate-500 mt-2 font-sans tracking-wide";
-                }
-            },
-
-            playActionAnimation(action) {
-                const logEl = document.getElementById('log-text');
-                logEl.innerText = action.log.msg;
-                logEl.className = `text-xs mt-2 font-sans font-bold tracking-wide ${action.log.color}`;
-
-                const targetPanel = action.attacker === 'hero' ? 'enemy' : 'hero';
-                const panelEl = document.getElementById(`${targetPanel}-panel`);
-
-                if (action.isHit) {
-                    // Create floating text
-                    const text = document.createElement('div');
-                    text.className = 'damage-text';
-                    text.innerText = `-${action.damage}`;
-                    panelEl.appendChild(text);
-                    setTimeout(() => text.remove(), 2500);
-
-                    // Shake
-                    panelEl.classList.add('taking-damage');
-                    setTimeout(() => panelEl.classList.remove('taking-damage'), 400);
-                } else {
-                    const text = document.createElement('div');
-                    text.className = 'miss-text';
-                    text.innerText = "MISS";
-                    panelEl.appendChild(text);
-                    setTimeout(() => text.remove(), 2000);
-                }
-            },
-
-            showGameOver(state) {
-                const overlay = document.getElementById('overlay');
-                const title = document.getElementById('overlay-title');
-                const sub = document.getElementById('overlay-sub');
-                const btn = document.getElementById('reset-btn');
+                // Update Active Panel & Turn Text
+                const p1 = document.getElementById('battle-hero-panel');
+                const p2 = document.getElementById('battle-enemy-panel');
+                const status = document.getElementById('battle-status');
+                const btn = document.getElementById('battle-d20-btn');
                 
-                overlay.classList.remove('hidden');
-                btn.classList.remove('hidden');
+                const isMyTurn = (myRole === s.turn);
 
-                const winner = state.hero.hp > 0 ? 'hero' : 'enemy';
-                const iAmWinner = this.myRole === winner;
-
-                if (iAmWinner) {
-                    title.innerText = "VICTORY";
-                    title.className = "text-6xl md:text-8xl font-black text-yellow-500 font-old animate-pulse drop-shadow-[0_0_35px_rgba(234,179,8,0.6)] mb-4 tracking-tighter";
-                    sub.innerText = "GLORY TO THE VICTOR";
-                } else if (this.myRole === 'spectator') {
-                    title.innerText = "GAME OVER";
-                    title.className = "text-6xl md:text-8xl font-black text-white font-old mb-4 tracking-tighter";
-                    sub.innerText = `${winner.toUpperCase()} TRIUMPHS`;
+                if(s.turn === 'hero') {
+                    p1.classList.add('active-turn'); p1.classList.remove('inactive-turn');
+                    p2.classList.remove('active-turn'); p2.classList.add('inactive-turn');
                 } else {
-                    title.innerText = "DEFEAT";
-                    title.className = "text-6xl md:text-8xl font-black text-red-600 font-old mb-4 tracking-tighter";
-                    sub.innerText = "YOU HAVE FALLEN";
+                    p2.classList.add('active-turn'); p2.classList.remove('inactive-turn');
+                    p1.classList.remove('active-turn'); p1.classList.add('inactive-turn');
                 }
+
+                // Status Message
+                if (s.gameOver) {
+                    const winner = s.hero.hp > 0 ? "WARRIOR" : "OGRE";
+                    status.innerText = `${winner} WINS!`;
+                    status.style.color = winner === 'WARRIOR' ? '#60a5fa' : '#ef4444';
+                    btn.classList.add('disabled');
+                } else {
+                    if (isMyTurn) {
+                        status.innerText = "YOUR TURN";
+                        status.style.color = "#fbbf24";
+                        btn.classList.remove('disabled');
+                        btn.style.filter = "drop-shadow(0 0 10px rgba(251, 191, 36, 0.6))";
+                    } else {
+                        const who = s.turn === 'hero' ? "WARRIOR" : "OGRE";
+                        status.innerText = `${who} IS THINKING...`;
+                        status.style.color = "#94a3b8";
+                        btn.classList.add('disabled');
+                        btn.style.filter = "grayscale(1) opacity(0.5)";
+                    }
+                }
+                
+                // Role Badge (Optional, reused status area logic or added elsewhere)
+                // Assuming we just use the turn indicator for now.
+            },
+
+            handleAction(action) {
+                // Visual Damage Text
+                const targetPanel = action.attacker === 'hero' ? 'battle-enemy-panel' : 'battle-hero-panel';
+                
+                if (action.isHit) {
+                    this.showFloatingText(action.damage, targetPanel);
+                    // Flash Effect
+                    const p = document.getElementById(targetPanel);
+                    p.style.filter = 'brightness(2) sepia(1) hue-rotate(-50deg) saturate(5)';
+                    setTimeout(() => p.style.filter = '', 150);
+                } else {
+                    this.showFloatingText("MISS", targetPanel, true);
+                }
+            },
+
+            showFloatingText(text, panelId, isMiss) {
+                const panel = document.getElementById(panelId);
+                const el = document.createElement('div');
+                el.className = 'damage-text';
+                el.innerText = isMiss ? text : `-${text}`;
+                el.style.color = isMiss ? '#94a3b8' : '#ef4444';
+                panel.appendChild(el);
+                setTimeout(() => el.remove(), 2000);
             }
         };
 
-        window.onload = () => battle.init();
+        function toggleFightModal() {
+            const modal = document.getElementById('fight-modal');
+            if(modal.classList.contains('active')) {
+                modal.classList.remove('active');
+            } else {
+                modal.classList.add('active');
+                // Ensure socket is connected if not already
+                initSocket(); 
+            }
+        }
+
+        // --- AI INTEGRATION ---
+        async function triggerAIChat(npcKey) {
+            const npcMap = {
+                'bartho': 'Bartho the Innkeeper',
+                'elara': 'Elara the Barmaid',
+                'table': 'A group of rowdy farmers',
+                'stranger': 'A mysterious cloaked stranger'
+            };
+            
+            const name = npcMap[npcKey];
+            const statStr = JSON.stringify(characterStats);
+            const history = questLog[npcKey];
+            
+            // Visual feedback
+            const dialogueText = document.getElementById('dialogue-text');
+            dialogueText.innerHTML = `<span style="color:#aaa; font-style:italic;">${name} is thinking...</span>`;
+            
+            const prompt = `Roleplay as ${name} in a fantasy tavern. 
+            The player stands before you. 
+            Player Stats: ${statStr}. 
+            Previous interaction result: ${history} (pending means they haven't done your quest yet). 
+            Respond to the player in character. Keep it under 2 sentences. 
+            Seed: ${Math.random()}`; 
+
+            try {
+                const response = await fetch(`https://text.pollinations.ai/${encodeURIComponent(prompt)}`);
+                if (response.ok) {
+                    const text = await response.text();
+                    dialogueText.innerText = `"${text}"`;
+                } else {
+                    dialogueText.innerText = "The spirits are silent (API Error).";
+                }
+            } catch (e) {
+                console.error(e);
+                dialogueText.innerText = "The spirits are silent (Connection Error).";
+            }
+        }
+
+        // --- MEMORY GENERATION ---
+        function generateMemory(npc, isSuccess) {
+            // Style string for art direction
+            const style = "dark fantasy visual novel art style, digital painting, atmospheric, cinematic lighting, detailed, masterpiece";
+            let desc = "";
+            
+            if (npc === 'bartho') {
+                desc = isSuccess 
+                    ? `strong warrior lifting a massive wooden beer keg overhead in a tavern, cheering crowd, warm lighting, ${style}`
+                    : `shattered beer keg on a tavern floor, spilled ale everywhere, disappointed bartender, sad atmosphere, ${style}`;
+            } else if (npc === 'elara') {
+                desc = isSuccess
+                    ? `hero catching a falling tray of glass mugs with lightning reflexes, dynamic action, tavern background, ${style}`
+                    : `broken glass mugs on a wooden tavern floor, spilled drink, startled barmaid, mess, ${style}`;
+            } else if (npc === 'table') {
+                desc = isSuccess
+                    ? `bard singing passionately to a cheering crowd in a medieval tavern, musical notes, happy faces, warm glow, ${style}`
+                    : `bard being booed by angry farmers in a tavern, rotten vegetables thrown, embarrassed, dark lighting, ${style}`;
+            } else if (npc === 'stranger') {
+                desc = isSuccess
+                    ? `winning chess move, checkmate, mysterious hooded figure handing over a gold coin, moody lighting, ${style}`
+                    : `chess game defeat, mysterious hooded figure gloating, dark shadows, despair, ${style}`;
+            }
+
+            if (desc) {
+                const seed = Math.floor(Math.random() * 10000);
+                const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(desc)}?width=1024&height=1024&seed=${seed}&nologo=true`;
+                questMemories[npc] = url;
+
+                // --- IMMEDIATE BACKGROUND PRELOAD ---
+                const img = new Image();
+                img.src = url;
+            }
+        }
+
+        function showMemory(npc) {
+            const url = questMemories[npc];
+            if (!url) return;
+            
+            document.getElementById('memory-img').src = url;
+            document.getElementById('memory-modal').classList.add('active');
+        }
+
+        function closeMemory() {
+            document.getElementById('memory-modal').classList.remove('active');
+        }
+
+        // Scene Definitions for Tavern
+        const scenes = {
+            'hub': { 
+                title: "The Weary Traveler", 
+                image: "Tavern.png", 
+                isHub: true, 
+                choices: [ 
+                    { text: "Talk to Bartho", action: "loadScene('bartho')" }, 
+                    { text: "Speak with Elara", action: "loadScene('elara')" }, 
+                    { text: "Entertain Crowd", action: "loadScene('table')" }, 
+                    { text: "Observe Stranger", action: "loadScene('stranger')" }, 
+                    { text: "Go to Room", action: "loadScene('room')" },
+                    // DYNAMIC BATTLE BUTTON
+                    { 
+                        text: () => isMultiplayerActive ? "LIVE BATTLE (Join)" : "Enter Battle Arena", 
+                        action: "toggleFightModal()", 
+                        class: () => isMultiplayerActive ? "battle-btn live-battle" : "battle-btn" 
+                    }
+                ] 
+            },
+            
+            // BARTHO
+            'bartho': { 
+                title: "The Innkeeper", 
+                image: "Bartender.png", 
+                isHub: false, 
+                dialogue: () => {
+                    if (questLog.bartho === 'success') return "Bartho nods respectfully. 'Strongest arm I've seen in weeks.'";
+                    if (questLog.bartho === 'fail') return "Bartho wipes the counter. 'Mind your feet, butterfingers.'";
+                    return "The burly innkeeper grunts. 'New here? Move this keg for me if you want a drink.'";
+                },
+                choices: [ 
+                    { text: "I'll do it (Roll STR)", condition: ()=>questLog.bartho==='pending'&&characterStats.STR===0, action: "startStatTest('STR','bartho_post_stat')" }, 
+                    { text: "Lift Keg", condition: ()=>questLog.bartho==='pending'&&characterStats.STR>0, action: "loadScene('bartho_post_stat')" }, 
+                    { text: "Recall Memory", condition: () => questMemories.bartho, action: "showMemory('bartho')", class: "mem-btn" },
+                    { text: "Chat (AI)", action: "triggerAIChat('bartho')", class: "ai-btn" },
+                    { text: "Leave", action: "loadScene('hub')" } 
+                ] 
+            },
+            'bartho_post_stat': { title: "The Challenge", image: "Bartender.png", dialogue: "The keg is heavy, smelling of old oak.", choices: [ { text: "Heave! (DC 12)", action: "startSkillCheck('STR', 12, 'bartho_win', 'bartho_lose', 'bartho')" } ] },
+            'bartho_win': { title: "Success!", image: "Bartender.png", dialogue: "You lifted it with a grunt of power!", choices: [ { text: "Drink Ale", action: "loadScene('hub')" } ] },
+            'bartho_lose': { title: "Failure...", image: "Bartender.png", dialogue: "It slips from your hands and rolls away.", choices: [ { text: "Walk away", action: "loadScene('hub')" } ] },
+            
+            // ELARA
+            'elara': { 
+                title: "The Hearth", 
+                image: "Barmaid.png", 
+                isHub: false, 
+                dialogue: () => {
+                    if (questLog.elara === 'success') return "Elara beams. 'My hero! You saved me a week's wages.'";
+                    if (questLog.elara === 'fail') return "Elara sweeps up glass. 'Please... just watch your step.'";
+                    return "Elara stumbles nearby, a tray of mugs tipping dangerously!";
+                },
+                choices: [ 
+                    { text: "Catch Tray (Roll DEX)", condition: ()=>questLog.elara==='pending'&&characterStats.DEX===0, action: "startStatTest('DEX','elara_post_stat')" }, 
+                    { text: "Catch", condition: ()=>questLog.elara==='pending'&&characterStats.DEX>0, action: "loadScene('elara_post_stat')" }, 
+                    { text: "Recall Memory", condition: () => questMemories.elara, action: "showMemory('elara')", class: "mem-btn" },
+                    { text: "Chat (AI)", action: "triggerAIChat('elara')", class: "ai-btn" },
+                    { text: "Leave", action: "loadScene('hub')" } 
+                ] 
+            },
+            'elara_post_stat': { title: "Reflex Test", image: "Barmaid.png", dialogue: "Mugs flying everywhere.", choices: [ { text: "Snatch! (DC 13)", action: "startSkillCheck('DEX', 13, 'elara_win', 'elara_lose', 'elara')" } ] },
+            'elara_win': { title: "Incredible!", image: "Barmaid.png", dialogue: "You caught them mid-air!", choices: [ { text: "Welcome", action: "loadScene('hub')" } ] },
+            'elara_lose': { title: "Crash!", image: "Barmaid.png", dialogue: "Shattered glass everywhere.", choices: [ { text: "Leave", action: "loadScene('hub')" } ] },
+
+            // TABLE
+            'table': { 
+                title: "The Common Room", 
+                image: "Table.png", 
+                dialogue: () => {
+                    if (questLog.table === 'success') return "The farmers cheer. 'Sing us another!'";
+                    if (questLog.table === 'fail') return "They mutter. 'Here comes the screecher.'";
+                    return "A table of farmers looks bored. They need entertainment.";
+                },
+                choices: [ 
+                    { text: "Tell Tale (Roll CHA)", condition: ()=>questLog.table==='pending'&&characterStats.CHA===0, action: "startStatTest('CHA','table_post_stat')" }, 
+                    { text: "Sing", condition: ()=>questLog.table==='pending'&&characterStats.CHA>0, action: "loadScene('table_post_stat')" }, 
+                    { text: "Recall Memory", condition: () => questMemories.table, action: "showMemory('table')", class: "mem-btn" },
+                    { text: "Chat (AI)", action: "triggerAIChat('table')", class: "ai-btn" },
+                    { text: "Leave", action: "loadScene('hub')" } 
+                ] 
+            },
+            'table_post_stat': { title: "Performance", image: "Table.png", dialogue: "You jump on a bench and sing.", choices: [ { text: "Sing loud! (DC 12)", action: "startSkillCheck('CHA', 12, 'table_win', 'table_lose', 'table')" } ] },
+            'table_win': { title: "Applause!", image: "Table.png", dialogue: "The room erupts in cheers.", choices: [ { text: "Bow", action: "loadScene('hub')" } ] },
+            'table_lose': { title: "Boos", image: "Table.png", dialogue: "Someone throws a cabbage.", choices: [ { text: "Leave", action: "loadScene('hub')" } ] },
+
+            // STRANGER
+            'stranger': { 
+                title: "The Stranger", 
+                image: "Stranger.png", 
+                dialogue: () => {
+                    if (questLog.stranger === 'success') return "The Stranger nods. 'A sharp mind you have.'";
+                    if (questLog.stranger === 'fail') return "The figure ignores you.";
+                    return "A cloaked figure sits at a chessboard. 'Do you play?'";
+                },
+                choices: [ 
+                    { text: "Play (Roll INT)", condition: ()=>questLog.stranger==='pending'&&characterStats.INT===0, action: "startStatTest('INT','stranger_post_stat')" }, 
+                    { text: "Play", condition: ()=>questLog.stranger==='pending'&&characterStats.INT>0, action: "loadScene('stranger_post_stat')" }, 
+                    { text: "Recall Memory", condition: () => questMemories.stranger, action: "showMemory('stranger')", class: "mem-btn" },
+                    { text: "Chat (AI)", action: "triggerAIChat('stranger')", class: "ai-btn" },
+                    { text: "Leave", action: "loadScene('hub')" } 
+                ] 
+            },
+            'stranger_post_stat': { title: "Gambit", image: "Stranger.png", dialogue: "A complex strategy unfolds.", choices: [ { text: "Win (DC 13)", action: "startSkillCheck('INT', 13, 'stranger_win', 'stranger_lose', 'stranger')" } ] },
+            'stranger_win': { title: "Checkmate", image: "Stranger.png", dialogue: "The stranger tips their king.", choices: [ { text: "Take coin", action: "loadScene('hub')" } ] },
+            'stranger_lose': { title: "Defeat", image: "Stranger.png", dialogue: "You walked into a trap.", choices: [ { text: "Leave", action: "loadScene('hub')" } ] },
+
+            'room': { title: "Quarters", image: "Room.png", dialogue: "A quiet place to rest.", choices: [ { text: "Return", action: "loadScene('hub')" } ] }
+        };
+
+        const imgElement = document.getElementById('scene-image');
+        const titleElement = document.getElementById('scene-title');
+        const choiceGrid = document.getElementById('choice-grid');
+        const backBtn = document.getElementById('controls-left');
+        const diceModal = document.getElementById('dice-modal-overlay');
+        const dialogueArea = document.getElementById('dialogue-area');
+        const dialogueText = document.getElementById('dialogue-text');
+        const journalModal = document.getElementById('journal-modal');
+        const storyLog = document.getElementById('story-log');
+        const uiStats = { STR: document.getElementById('str-val'), DEX: document.getElementById('dex-val'), INT: document.getElementById('int-val'), CHA: document.getElementById('cha-val') };
+
+        function loadScene(sceneKey) {
+            // INIT SOCKET ON TAVERN ENTRY
+            if (sceneKey === 'hub') {
+                initSocket();
+            }
+
+            const data = scenes[sceneKey];
+            imgElement.classList.remove('visible');
+            backBtn.classList.remove('active');
+            choiceGrid.style.opacity = '0'; choiceGrid.style.pointerEvents = 'none';
+            dialogueArea.style.display = 'none';
+            
+            setTimeout(() => {
+                imgElement.src = data.image;
+                titleElement.innerText = data.title;
+                choiceGrid.innerHTML = '';
+                if(data.choices) {
+                    data.choices.forEach(c => {
+                        if (c.condition && !c.condition()) return;
+                        
+                        const b = document.createElement('button');
+                        b.className = 'btn-choice';
+                        
+                        // Handle dynamic class (function or string)
+                        let cssClass = '';
+                        if (typeof c.class === 'function') cssClass = c.class();
+                        else if (c.class) cssClass = c.class;
+                        
+                        if (cssClass) b.className += ' ' + cssClass;
+                        
+                        // Handle dynamic text
+                        b.innerText = typeof c.text === 'function' ? c.text() : c.text;
+                        b.setAttribute('onclick', c.action);
+                        choiceGrid.appendChild(b);
+                    });
+                }
+                const onReady = () => {
+                    imgElement.classList.add('visible');
+                    setTimeout(() => {
+                        titleElement.style.opacity = '1';
+                        if(data.dialogue) {
+                            dialogueText.innerText = typeof data.dialogue === 'function' ? data.dialogue() : data.dialogue;
+                            dialogueArea.style.display = 'block';
+                        }
+                        choiceGrid.style.display = 'flex';
+                        setTimeout(() => { choiceGrid.style.opacity = '1'; choiceGrid.style.pointerEvents = 'auto'; }, 50);
+                        if (!data.isHub) backBtn.classList.add('active'); else backBtn.classList.remove('active');
+                    }, 300);
+                };
+                if (imgElement.complete) onReady(); else { imgElement.onload = onReady; imgElement.onerror = onReady; }
+            }, 800);
+        }
+
+        // --- DICE FUNCTIONS ---
+        function toggleDiceModal() {
+            if (diceModal.classList.contains('active')) { diceModal.classList.remove('active'); restoreDiceUI(); } else diceModal.classList.add('active');
+        }
+        function toggleJournal() { journalModal.classList.toggle('active'); }
+        function addToStory(text) { const div = document.createElement('div'); div.className = 'journal-entry'; div.innerText = text; storyLog.appendChild(div); }
+        
+        function restrictDiceUI(allowed) { 
+            // Hide buttons that don't match 'allowed', show the one that does
+            document.querySelectorAll('.die-btn').forEach(b => {
+                if(parseInt(b.dataset.sides) === allowed) {
+                    b.classList.remove('display-none');
+                    b.click(); // Auto-select the allowed die
+                } else {
+                    b.classList.add('display-none');
+                }
+            });
+        }
+        
+        function restoreDiceUI() { 
+            document.querySelectorAll('.die-btn').forEach(b => b.classList.remove('display-none')); 
+        }
+        
+        function startStatTest(stat, next) {
+            if(characterStats[stat]>0) return;
+            activeStat=stat; pendingNextScene=next; isGeneratingStat=true; statRolls=[];
+            toggleDiceModal(); restrictDiceUI(6); // FORCE D6
+            document.querySelector('.dice-title').innerText = `Generating ${stat} (1/3)`;
+        }
+        
+        function startSkillCheck(stat, dc, win, lose, key) {
+            isSkillCheck=true; activeStat=stat; activeDC=dc; activeSuccessScene=win; activeFailScene=lose; activeQuestKey=key;
+            toggleDiceModal(); restrictDiceUI(20); // FORCE D20
+            const mod = Math.floor((characterStats[stat]-10)/2);
+            document.querySelector('.dice-title').innerText = `Check: ${stat} ${mod>=0?'+':''}${mod} (DC ${dc})`;
+        }
+
+        window.handleDiceResult = function(result) {
+            if(isGeneratingStat && activeStat) {
+                statRolls.push(result);
+                if(statRolls.length < 3) {
+                    setTimeout(() => document.querySelector('.dice-title').innerText = `Generating ${activeStat} (${statRolls.length+1}/3)`, 1000);
+                } else {
+                    const total = statRolls.reduce((a,b)=>a+b,0);
+                    characterStats[activeStat] = total;
+                    const mod = Math.floor((total-10)/2);
+                    uiStats[activeStat].innerHTML = `${total} <span class="stat-mod">(${mod>=0?'+':''}${mod})</span>`;
+                    document.querySelector('.dice-title').innerText = `${activeStat} Set to ${total}`;
+                    isGeneratingStat = false;
+                    addToStory(`Your ${activeStat} is ${total}.`);
+                    setTimeout(() => { toggleDiceModal(); restoreDiceUI(); activeStat=null; loadScene(pendingNextScene); }, 1500);
+                }
+            } else if(isSkillCheck && activeStat) {
+                const mod = Math.floor((characterStats[activeStat]-10)/2);
+                const total = result+mod;
+                const success = total>=activeDC;
+                document.querySelector('.dice-title').innerText = `${success?"Success!":"Failure..."} (${result}${mod>=0?'+':''}${mod}=${total} vs DC ${activeDC})`;
+                if(activeQuestKey) { 
+                    questLog[activeQuestKey] = success?'success':'fail';
+                    generateMemory(activeQuestKey, success); // GENERATE MEMORY ON RESULT
+                }
+                setTimeout(() => {
+                    toggleDiceModal(); restoreDiceUI(); isSkillCheck=false; activeStat=null;
+                    loadScene(success ? activeSuccessScene : activeFailScene);
+                    addToStory(success ? `Success on ${activeQuestKey} quest.` : `Failed ${activeQuestKey} quest.`);
+                }, 2500);
+            }
+        };
+
+        // Initialize
+        loadScene('hub');
+        addToStory("You arrived at The Weary Traveler after surviving the storm.");
+    </script>
+    
+    <!-- === THREE.JS DICE ENGINE (FULL VERSION) === -->
+    <script type="module">
+        import * as THREE from 'three';
+        import * as CANNON from 'cannon-es';
+
+        // --- GLOBAL CONFIGURATION ---
+        const CONFIG = {
+            colors: {
+                die: 0x3b82f6,
+                floor: 0xf1f5f9,
+                text: '#ffffff',
+                gold: '#eab308',
+                red: '#dc2626',
+                dark: '#334155'
+            },
+            physics: {
+                gravity: -50,
+                friction: 0.3,
+                restitution: 0.5
+            },
+            radius: 1.5
+        };
+
+        // --- RUNTIME STATE ---
+        const STATE = {
+            scene: null, camera: null, renderer: null, world: null,
+            dieBody: null, dieMesh: null,
+            logicalFaces: [],
+            isRolling: false,
+            currentSides: 20
+        };
+
+        // --- INIT ---
+        function init() {
+            setupGraphics();
+            setupPhysics();
+            setupCage();
+            spawnDie(20);
+            setupInteractions();
+            animate();
+        }
+
+        function setupGraphics() {
+            const container = document.getElementById('canvas-container');
+            
+            STATE.scene = new THREE.Scene();
+            STATE.scene.background = new THREE.Color(CONFIG.colors.floor);
+
+            STATE.camera = new THREE.PerspectiveCamera(30, 360/500, 0.1, 100);
+            STATE.camera.position.set(0, 20, 10);
+            STATE.camera.lookAt(0, 0, 0);
+
+            STATE.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            STATE.renderer.setSize(360, 500);
+            STATE.renderer.shadowMap.enabled = true;
+            STATE.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(STATE.renderer.domElement);
+
+            // Lighting
+            STATE.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+            const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+            sun.position.set(5, 15, 5);
+            sun.castShadow = true;
+            sun.shadow.mapSize.width = 1024; sun.shadow.mapSize.height = 1024;
+            STATE.scene.add(sun);
+        }
+
+        function setupPhysics() {
+            STATE.world = new CANNON.World();
+            STATE.world.gravity.set(0, CONFIG.physics.gravity, 0);
+            
+            const mat = new CANNON.Material();
+            STATE.world.addContactMaterial(new CANNON.ContactMaterial(mat, mat, CONFIG.physics));
+            STATE.sharedMaterial = mat; 
+        }
+
+        function setupCage() {
+            // Visual Floor
+            const floorMesh = new THREE.Mesh(
+                new THREE.PlaneGeometry(20, 20),
+                new THREE.ShadowMaterial({ opacity: 0.2 })
+            );
+            floorMesh.rotation.x = -Math.PI / 2;
+            floorMesh.receiveShadow = true;
+            STATE.scene.add(floorMesh);
+
+            // Physical Boundaries
+            const addPlane = (pos, rot) => {
+                const body = new CANNON.Body({ mass: 0, material: STATE.sharedMaterial });
+                body.addShape(new CANNON.Plane());
+                body.position.copy(pos);
+                body.quaternion.setFromEuler(rot.x, rot.y, rot.z);
+                STATE.world.addBody(body);
+            };
+            
+            // Floor
+            addPlane(new CANNON.Vec3(0,0,0), new CANNON.Vec3(-Math.PI/2, 0, 0));
+
+            // Walls (Box shapes for walls to prevent tunneling)
+            const addWall = (x, z, ry) => {
+                const body = new CANNON.Body({ mass: 0, material: STATE.sharedMaterial });
+                body.addShape(new CANNON.Box(new CANNON.Vec3(10, 10, 1)));
+                body.position.set(x, 10, z);
+                body.quaternion.setFromEuler(0, ry, 0);
+                STATE.world.addBody(body);
+            };
+
+            addWall(0, -3.5, 0); // Back
+            addWall(0, 3.5, 0);  // Front
+            addWall(-5, 0, Math.PI/2); // Left
+            addWall(5, 0, Math.PI/2);  // Right
+        }
+
+        // --- GEOMETRY FACTORY ---
+        function getGeometry(sides, r) {
+            switch(sides) {
+                case 4: return new THREE.TetrahedronGeometry(r);
+                case 6: return new THREE.BoxGeometry(r*1.5, r*1.5, r*1.5);
+                case 8: return new THREE.OctahedronGeometry(r);
+                case 10: return createD10Geometry(r);
+                case 12: return new THREE.DodecahedronGeometry(r);
+                case 20: return new THREE.IcosahedronGeometry(r);
+                default: return new THREE.IcosahedronGeometry(r);
+            }
+        }
+
+        function createD10Geometry(radius) {
+            const vertices = [], indices = [];
+            const H = radius * 1.2, R = radius * 1.0, h = radius * 0.2;
+            
+            vertices.push(0, H, 0, 0, -H, 0); // Poles
+            for(let i=0; i<5; i++) { // Ring A
+                const ang = (i * 72) * Math.PI/180;
+                vertices.push(Math.cos(ang)*R, h, Math.sin(ang)*R);
+            }
+            for(let i=0; i<5; i++) { // Ring B
+                const ang = ((i * 72) + 36) * Math.PI/180;
+                vertices.push(Math.cos(ang)*R, -h, Math.sin(ang)*R);
+            }
+            for(let i=0; i<5; i++) {
+                const A=2+i, B=7+i, An=2+((i+1)%5), Bn=7+((i+1)%5);
+                indices.push(0, B, A,  0, An, B,  1, B, An,  1, An, Bn);
+            }
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            geo.setIndex(indices);
+            geo.computeVertexNormals();
+            return geo;
+        }
+
+        // --- DICE LOGIC & GENERATION ---
+        function spawnDie(sides) {
+            if(STATE.dieBody) STATE.world.removeBody(STATE.dieBody);
+            if(STATE.dieMesh) STATE.scene.remove(STATE.dieMesh);
+            STATE.logicalFaces = [];
+            STATE.currentSides = sides;
+
+            const geometry = getGeometry(sides, CONFIG.radius);
+            const material = new THREE.MeshStandardMaterial({
+                color: CONFIG.colors.die, roughness: 0.1, metalness: 0.2, flatShading: true
+            });
+            STATE.dieMesh = new THREE.Group();
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.castShadow = true;
+            STATE.dieMesh.add(mesh);
+
+            const { shape, faces } = processGeometry(geometry, sides);
+            STATE.logicalFaces = faces;
+
+            STATE.dieBody = new CANNON.Body({ mass: 5, shape, material: STATE.sharedMaterial });
+            STATE.dieBody.position.set(0, 4, 0);
+            STATE.dieBody.quaternion.setFromEuler(Math.random()*6, Math.random()*6, 0);
+            
+            STATE.world.addBody(STATE.dieBody);
+            STATE.scene.add(STATE.dieMesh);
+
+            addDecals(STATE.dieMesh, STATE.logicalFaces);
+        }
+
+        function processGeometry(geometry, sides) {
+            // D6 Special Case: BoxGeometry is cleaner to define manually
+            if(sides === 6) {
+                const s = CONFIG.radius * 1.5 / 2;
+                return {
+                    shape: new CANNON.Box(new CANNON.Vec3(s, s, s)),
+                    faces: [
+                        { normal: new THREE.Vector3(1,0,0), center: new THREE.Vector3(s,0,0) },
+                        { normal: new THREE.Vector3(-1,0,0), center: new THREE.Vector3(-s,0,0) },
+                        { normal: new THREE.Vector3(0,1,0), center: new THREE.Vector3(0,s,0) },
+                        { normal: new THREE.Vector3(0,-1,0), center: new THREE.Vector3(0,-s,0) },
+                        { normal: new THREE.Vector3(0,0,1), center: new THREE.Vector3(0,0,s) },
+                        { normal: new THREE.Vector3(0,0,-1), center: new THREE.Vector3(0,0,-s) }
+                    ]
+                };
+            }
+
+            const pos = geometry.attributes.position;
+            const vertices = [], pointsMap = {}, tempFaces = [];
+            
+            for(let i=0; i<pos.count; i++) {
+                const v = new THREE.Vector3().fromBufferAttribute(pos, i);
+                const key = `${v.x.toFixed(3)},${v.y.toFixed(3)},${v.z.toFixed(3)}`;
+                if(pointsMap[key] === undefined) {
+                    pointsMap[key] = vertices.length;
+                    vertices.push(new CANNON.Vec3(v.x, v.y, v.z));
+                }
+            }
+
+            const idx = geometry.index ? geometry.index.array : [...Array(pos.count).keys()];
+            for(let i=0; i<idx.length; i+=3) {
+                tempFaces.push([idx[i], idx[i+1], idx[i+2]]);
+            }
+
+            const cannonFaces = tempFaces.map(tri => tri.map(i => {
+                const v = new THREE.Vector3().fromBufferAttribute(pos, i);
+                return pointsMap[`${v.x.toFixed(3)},${v.y.toFixed(3)},${v.z.toFixed(3)}`];
+            }));
+
+            const logicalFaces = [];
+            tempFaces.forEach(tri => {
+                const a = new THREE.Vector3().fromBufferAttribute(pos, tri[0]);
+                const b = new THREE.Vector3().fromBufferAttribute(pos, tri[1]);
+                const c = new THREE.Vector3().fromBufferAttribute(pos, tri[2]);
+                const center = new THREE.Vector3().add(a).add(b).add(c).multiplyScalar(1/3);
+                
+                const cb = new THREE.Vector3().subVectors(c, b);
+                const ab = new THREE.Vector3().subVectors(a, b);
+                const normal = new THREE.Vector3().crossVectors(cb, ab).normalize();
+
+                const threshold = (sides === 10) ? 0.95 : 0.99;
+                const existing = logicalFaces.find(lf => lf.normal.dot(normal) > threshold);
+
+                if (existing) {
+                    existing.centerAcc.add(center);
+                    existing.count++;
+                } else {
+                    logicalFaces.push({ normal: normal.clone(), centerAcc: center.clone(), count: 1 });
+                }
+            });
+
+            logicalFaces.forEach(f => f.center = f.centerAcc.divideScalar(f.count));
+
+            return {
+                shape: new CANNON.ConvexPolyhedron({ vertices, faces: cannonFaces }),
+                faces: logicalFaces
+            };
+        }
+
+        function addDecals(group, faces) {
+            faces.forEach((data, index) => {
+                const num = index + 1;
+                data.value = num;
+
+                const canvas = document.createElement('canvas');
+                canvas.width = 64; canvas.height = 64;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 40px Arial';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(num, 32, 32);
+
+                const plane = new THREE.Mesh(
+                    new THREE.PlaneGeometry(0.8, 0.8),
+                    new THREE.MeshBasicMaterial({ 
+                        map: new THREE.CanvasTexture(canvas), 
+                        transparent: true, 
+                        polygonOffset: true, polygonOffsetFactor: -1 
+                    })
+                );
+                
+                plane.position.copy(data.center).add(data.normal.clone().multiplyScalar(0.01));
+                plane.lookAt(data.center.clone().add(data.normal));
+                group.add(plane);
+            });
+        }
+
+        // --- INTERACTION ---
+        function setupInteractions() {
+            // Dice Selector Buttons
+            document.querySelectorAll('.die-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.die-btn').forEach(b => b.classList.remove('active'));
+                    e.target.classList.add('active');
+                    spawnDie(parseInt(e.target.dataset.sides));
+                    document.getElementById('result-display').classList.remove('visible');
+                });
+            });
+
+            document.getElementById('roll-btn').addEventListener('click', rollDice);
+
+            // Color Picker
+            const drop = document.getElementById('color-dropdown');
+            const mainBtn = document.getElementById('current-color-btn');
+            
+            mainBtn.addEventListener('click', (e) => { e.stopPropagation(); drop.classList.toggle('open'); });
+            document.addEventListener('click', () => drop.classList.remove('open'));
+
+            document.querySelectorAll('.color-option').forEach(opt => {
+                opt.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const col = parseInt(e.target.dataset.color);
+                    const cssCol = e.target.style.background;
+                    
+                    CONFIG.colors.die = col;
+                    mainBtn.style.background = cssCol;
+                    document.getElementById('roll-btn').style.background = cssCol;
+                    if(STATE.dieMesh) STATE.dieMesh.children[0].material.color.setHex(col);
+                    drop.classList.remove('open');
+                });
+            });
+        }
+
+        function rollDice() {
+            if(STATE.isRolling || !STATE.dieBody) return;
+            STATE.isRolling = true;
+            document.getElementById('roll-btn').disabled = true;
+            document.getElementById('result-display').classList.remove('visible');
+
+            // Reset Position
+            STATE.dieBody.position.set(0, 6, 0);
+            STATE.dieBody.velocity.set(0,0,0);
+            STATE.dieBody.angularVelocity.set(0,0,0);
+
+            const kick = 10, spin = 20;
+            STATE.dieBody.applyImpulse(
+                new CANNON.Vec3((Math.random()-.5)*kick, -5, (Math.random()-.5)*kick),
+                new CANNON.Vec3(0,0,0)
+            );
+            STATE.dieBody.angularVelocity.set(
+                (Math.random()-.5)*spin, (Math.random()-.5)*spin, (Math.random()-.5)*spin
+            );
+
+            const interval = setInterval(() => {
+                const v = STATE.dieBody.velocity.length();
+                const w = STATE.dieBody.angularVelocity.length();
+                if(v < 0.1 && w < 0.1 && STATE.dieBody.position.y < 3) {
+                    clearInterval(interval);
+                    showResult();
+                }
+            }, 100);
+        }
+
+        function showResult() {
+            STATE.isRolling = false;
+            document.getElementById('roll-btn').disabled = false;
+
+            const quat = new THREE.Quaternion().copy(STATE.dieBody.quaternion);
+            let bestDot = -Infinity, result = 1;
+
+            const targetDir = (STATE.currentSides === 4) ? new THREE.Vector3(0,-1,0) : new THREE.Vector3(0,1,0);
+
+            STATE.logicalFaces.forEach(f => {
+                const dot = f.normal.clone().applyQuaternion(quat).dot(targetDir);
+                if(dot > bestDot) { bestDot = dot; result = f.value; }
+            });
+
+            const disp = document.getElementById('result-display');
+            disp.innerText = result;
+            disp.style.color = (result === STATE.currentSides) ? CONFIG.colors.gold : 
+                               (result === 1) ? CONFIG.colors.red : CONFIG.colors.dark;
+            disp.classList.add('visible');
+
+            // CALL MAIN GAME LOGIC
+            if (window.handleDiceResult) window.handleDiceResult(result);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            STATE.world.step(1/60);
+            if(STATE.dieBody && STATE.dieMesh) {
+                STATE.dieMesh.position.copy(STATE.dieBody.position);
+                STATE.dieMesh.quaternion.copy(STATE.dieBody.quaternion);
+            }
+            STATE.renderer.render(STATE.scene, STATE.camera);
+        }
+
+        init();
     </script>
 </body>
 </html>
