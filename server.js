@@ -104,18 +104,29 @@ io.on('connection', (socket) => {
         });
     });
 
-    // 3. Handle Reset
+    // 3. Handle Chat
+    socket.on('send_chat', (msg) => {
+        // Sanitize input slightly (slice length)
+        const cleanMsg = msg.slice(0, 100); 
+        if (!cleanMsg) return;
+
+        io.emit('chat_message', {
+            role: role,
+            text: cleanMsg,
+            id: socket.id
+        });
+    });
+
+    // 4. Handle Reset
     socket.on('reset_game', () => {
         gameState = JSON.parse(JSON.stringify(INITIAL_STATE));
         io.emit('game_update', { state: gameState, reset: true });
     });
 
-    // 4. Handle Disconnect
+    // 5. Handle Disconnect
     socket.on('disconnect', () => {
         console.log('User disconnected:', socket.id);
         delete players[socket.id];
-        // Optional: Reset game if a player leaves?
-        // For now, we just let the slot open up for someone else.
     });
 });
 
