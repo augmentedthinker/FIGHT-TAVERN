@@ -343,6 +343,16 @@
 
                 socket.on('welcome', (data) => {
                     this.myRole = data.role;
+                    
+                    // FIX: Force switch to game view if we are assigned a combat role
+                    if (this.myRole === 'hero' || this.myRole === 'enemy') {
+                        document.getElementById('lobby-panel').classList.add('hidden');
+                        document.getElementById('game-widget').classList.remove('hidden');
+                        // Ensure modal is hidden
+                        document.getElementById('challenge-modal').classList.add('hidden');
+                        document.getElementById('challenge-modal').classList.remove('flex');
+                    }
+
                     const alert = document.getElementById('role-alert');
                     if(this.myRole === 'hero') alert.innerText = "You: Warrior";
                     else if(this.myRole === 'enemy') alert.innerText = "You: Ogre";
