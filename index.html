@@ -127,7 +127,18 @@
             <div id="lobby-count" class="text-xs text-slate-500 mt-1"></div>
         </div>
 
+        <!-- Dynamic Lobby Actions -->
         <div id="lobby-actions" class="w-full space-y-3"></div>
+        
+        <!-- Challenge Notification (Hidden by default) -->
+        <div id="challenge-modal" class="hidden absolute inset-0 bg-black/90 flex-col items-center justify-center p-6 z-50 animate-pop">
+            <h2 class="text-2xl text-yellow-500 font-bold mb-2">CHALLENGE!</h2>
+            <p class="text-slate-300 text-sm mb-6">A rival warrior wants to fight.</p>
+            <button onclick="app.acceptChallenge()" class="w-full bg-red-600 hover:bg-red-500 text-white py-4 rounded-lg font-bold mb-3 animate-pulse">
+                ACCEPT BATTLE
+            </button>
+            <div class="text-xs text-slate-500">Wait to decline...</div>
+        </div>
     </div>
 
     <!-- === GAME WIDGET === -->
@@ -229,19 +240,37 @@
         const socket = io(RAILWAY_URL);
 
         const app = {
+            // Emits specific game mode request
             openGame(mode) {
-                socket.emit('join_game', { mode: mode });
+                if(mode === 'challenge') {
+                    // Send challenge
+                    socket.emit('send_challenge');
+                    document.getElementById('challenge-btn').innerText = "CHALLENGING...";
+                    document.getElementById('challenge-btn').disabled = true;
+                } else {
+                    // PvE or Spectate
+                    socket.emit('join_game', { mode: mode });
+                    document.getElementById('lobby-panel').classList.add('hidden');
+                    document.getElementById('game-widget').classList.remove('hidden');
+                    battle.init();
+                }
+            },
+            
+            acceptChallenge() {
+                socket.emit('accept_challenge');
+                document.getElementById('challenge-modal').classList.add('hidden');
                 document.getElementById('lobby-panel').classList.add('hidden');
                 document.getElementById('game-widget').classList.remove('hidden');
                 battle.init();
             },
+
             closeWidget() {
                 document.getElementById('game-widget').classList.add('hidden');
                 document.getElementById('lobby-panel').classList.remove('hidden');
-                // Reconnect/Refresh state logic could go here
             }
         };
 
+        // --- LOBBY LOGIC ---
         socket.on('lobby_stats', (stats) => {
             const statusText = document.getElementById('lobby-status-text');
             const actionsDiv = document.getElementById('lobby-actions');
@@ -253,22 +282,52 @@
             if (stats.gameInProgress) {
                 statusText.innerText = "Battle in Progress!";
                 statusText.className = "text-lg text-red-400 font-bold animate-pulse";
-                actionHtml = `<button onclick="app.openGame('spectate')" class="w-full bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 border border-slate-600"><i data-lucide="eye" class="w-4 h-4"></i> Watch</button>`;
-            } else if (stats.waitingForOpponent) {
-                statusText.innerText = "Challenger Awaits!";
-                statusText.className = "text-lg text-yellow-400 font-bold animate-pulse";
-                actionHtml = `<button onclick="app.openGame('pvp')" class="w-full bg-yellow-600 hover:bg-yellow-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 border border-yellow-400 shadow-lg shadow-yellow-900/20"><i data-lucide="swords" class="w-4 h-4"></i> Fight!</button>`;
-            } else {
-                statusText.innerText = "Arena Empty";
+                actionHtml = `
+                    <button onclick="app.openGame('spectate')" class="w-full bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 border border-slate-600"><i data-lucide="eye" class="w-4 h-4"></i> Watch Battle</button>
+                `;
+            } 
+            else if (stats.connected > 1) {
+                // 2+ People: Send Challenge
+                statusText.innerText = "Opponent Available!";
+                statusText.className = "text-lg text-yellow-400 font-bold";
+                actionHtml = `
+                    <button id="challenge-btn" onclick="app.openGame('challenge')" class="w-full bg-yellow-600 hover:bg-yellow-500 text-white py-4 rounded-lg font-bold flex items-center justify-center gap-2 border border-yellow-400 shadow-lg shadow-yellow-900/20">
+                        <i data-lucide="swords" class="w-5 h-5"></i> SEND CHALLENGE
+                    </button>
+                    <div class="text-center text-xs text-slate-500 mt-2">or</div>
+                    <button onclick="app.openGame('pve')" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-400 py-2 rounded-lg font-bold text-sm flex items-center justify-center gap-2 border border-slate-700 mt-2">
+                        <i data-lucide="bot" class="w-4 h-4"></i> Practice vs CPU
+                    </button>
+                `;
+            } 
+            else {
+                // 1 Person: CPU Only
+                statusText.innerText = "You are Alone...";
                 statusText.className = "text-lg text-slate-400 font-bold";
                 actionHtml = `
-                    <button onclick="app.openGame('pvp')" class="w-full bg-blue-900 hover:bg-blue-800 text-blue-100 py-3 rounded-lg font-bold flex items-center justify-center gap-2 mb-3 border border-blue-700 shadow-lg shadow-blue-900/20"><i data-lucide="users" class="w-4 h-4"></i> Wait for Human</button>
+                    <button onclick="app.openGame('pve')" class="w-full bg-blue-900 hover:bg-blue-800 text-blue-100 py-4 rounded-lg font-bold flex items-center justify-center gap-2 border border-blue-700 shadow-lg shadow-blue-900/20">
+                        <i data-lucide="bot" class="w-5 h-5"></i> PLAY VS COMPUTER
+                    </button>
+                    <div class="text-xs text-slate-500 mt-2">Waiting for another human...</div>
                 `;
             }
             actionsDiv.innerHTML = actionHtml;
             lucide.createIcons();
         });
 
+        socket.on('challenge_received', () => {
+            const modal = document.getElementById('challenge-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        });
+        
+        socket.on('challenge_canceled', () => {
+             const modal = document.getElementById('challenge-modal');
+             modal.classList.add('hidden');
+             modal.classList.remove('flex');
+        });
+
+        // --- GAME LOGIC ---
         const battle = {
             myRole: null, isMyTurn: false,
 
@@ -294,30 +353,25 @@
                 socket.on('game_update', (data) => {
                     this.updateUI(data.state);
                     if(data.action) this.handleAction(data.action);
-                    
-                    // Note: We deliberately don't auto-hide overlay on reset 
-                    // if it was caused by a disconnect. We let the user click "Back to Lobby"
                 });
 
                 socket.on('player_left', (data) => {
                     const ov = document.getElementById('overlay');
                     ov.classList.remove('hidden');
-                    
                     document.getElementById('overlay-title').innerText = "OPPONENT LEFT";
                     document.getElementById('overlay-sub').innerText = "The battle is cancelled.";
-                    
                     const btn = document.getElementById('overlay-btn');
                     btn.innerText = "BACK TO LOBBY";
                     btn.onclick = () => {
-                        ov.classList.add('hidden'); // Hide overlay
-                        app.closeWidget(); // Go back to lobby
+                        ov.classList.add('hidden');
+                        app.closeWidget();
                     };
                 });
 
                 socket.on('chat_message', (data) => {
                     const box = document.getElementById('chat-messages');
                     const color = data.role === 'hero' ? 'text-blue-400' : (data.role === 'enemy' ? 'text-red-400' : 'text-slate-500');
-                    const name = data.role === 'hero' ? 'WAR' : (data.role === 'enemy' ? 'OGR' : 'SPEC');
+                    const name = data.role === 'hero' ? 'WAR' : (data.role === 'enemy' ? 'OGR' : (data.role === 'bot' ? 'CPU' : 'SPEC'));
                     const el = document.createElement('div');
                     el.innerHTML = `<span class="font-bold ${color} text-[10px] mr-1 uppercase tracking-wide">${name}</span><span class="text-slate-300 text-xs">${data.text}</span>`;
                     box.appendChild(el);
@@ -355,13 +409,11 @@
                     document.getElementById('overlay-title').innerText = state.hero.hp > 0 ? "VICTORY" : "DEFEAT";
                     document.getElementById('overlay-sub').innerText = state.hero.hp > 0 ? "The Warrior prevails!" : "The Ogre feasts!";
                     
-                    // Ensure button resets to normal game reset behavior
                     const btn = document.getElementById('overlay-btn');
                     btn.innerText = "PLAY AGAIN";
                     btn.onclick = () => battle.resetGame();
                     return;
                 } else if (document.getElementById('overlay-title').innerText !== "OPPONENT LEFT") {
-                    // Only hide overlay if it's not the "Opponent Left" screen
                     document.getElementById('overlay').classList.add('hidden');
                 }
 
