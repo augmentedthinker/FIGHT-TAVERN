@@ -2,199 +2,287 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Multiplayer Battle</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tavern Battle Widget</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=MedievalSharp&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { medieval: ['MedievalSharp', 'cursive'] },
+                    animation: {
+                        'shake': 'shake 0.5s cubic-bezier(.36,.07,.19,.97) both',
+                        'pop': 'pop 0.3s ease-out forwards',
+                        'pulse-glow': 'pulseGlow 2s infinite',
+                    },
+                    keyframes: {
+                        shake: {
+                            '10%, 90%': { transform: 'translate3d(-1px, 0, 0)' },
+                            '20%, 80%': { transform: 'translate3d(2px, 0, 0)' },
+                            '30%, 50%, 70%': { transform: 'translate3d(-4px, 0, 0)' },
+                            '40%, 60%': { transform: 'translate3d(4px, 0, 0)' }
+                        },
+                        pop: {
+                            '0%': { transform: 'scale(0.8)', opacity: '0' },
+                            '100%': { transform: 'scale(1)', opacity: '1' }
+                        },
+                        pulseGlow: {
+                            '0%, 100%': { opacity: '1', filter: 'brightness(1)' },
+                            '50%': { opacity: '0.8', filter: 'brightness(1.2)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <style>
-        /* --- GLOBAL & UTILS --- */
-        body { background-color: #000; color: #e2e8f0; font-family: 'MedievalSharp', cursive; overflow: hidden; touch-action: none; }
-        .text-glow { text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000; }
+        body { background-color: #0f172a; color: #e2e8f0; font-family: 'MedievalSharp', cursive; overflow: hidden; }
         
-        /* Glass Panel */
-        .hud-panel { 
-            background: rgba(15, 23, 42, 0.9); 
-            backdrop-filter: blur(8px); 
-            border-top: 1px solid rgba(255, 255, 255, 0.2); 
-            box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
+        /* Widget Window */
+        .widget-container {
+            width: 100%; max-width: 420px; height: 700px; max-height: 90vh;
+            background: rgba(30, 41, 59, 0.95);
+            border: 1px solid #475569;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border-radius: 1rem;
+            display: flex; flex-direction: column;
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
         }
 
-        /* --- SPLIT SCREEN LOGIC --- */
-        /* Default (Mobile): Stack Vertical. MD (Desktop): Side by Side */
-        .game-container { display: flex; flex-direction: column; width: 100%; height: 100%; }
-        @media (min-width: 768px) { .game-container { flex-direction: row; } }
-
-        .split-panel {
-            position: relative; flex: 1; overflow: hidden;
-            transition: all 0.5s ease;
-            border: 4px solid #1e293b; /* Basic border */
+        /* Character Cards */
+        .char-card {
+            background: #020617; border: 1px solid #1e293b;
+            border-radius: 0.5rem; padding: 0.5rem;
+            display: flex; flex-direction: column; align-items: center;
+            transition: all 0.3s ease;
         }
-        
-        /* Active Turn Highlighting */
-        .active-turn { flex: 1.2; filter: brightness(1.1); z-index: 10; border-color: #facc15; box-shadow: inset 0 0 20px rgba(250, 204, 21, 0.2); }
-        .inactive-turn { flex: 0.8; filter: grayscale(0.8) brightness(0.6); z-index: 0; border-color: #0f172a; }
+        .active-turn { border-color: #fbbf24; box-shadow: 0 0 15px rgba(251, 191, 36, 0.2); transform: scale(1.02); }
+        .inactive-turn { opacity: 0.6; filter: grayscale(0.8); }
 
-        .split-image { width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s ease; }
-        .active-turn .split-image { transform: scale(1.05); }
-
-        /* Fancy Frame for Panels */
-        .panel-frame {
-            position: absolute; inset: 0; pointer-events: none; z-index: 20;
-            border: 8px double rgba(255,255,255,0.1);
+        .char-img {
+            width: 80px; height: 80px; object-fit: cover; border-radius: 0.375rem;
+            margin-bottom: 0.5rem; border: 1px solid #334155;
         }
-        .active-turn .panel-frame { border-color: rgba(250, 204, 21, 0.4); }
 
         /* HP Bars */
-        .hp-container {
-            position: absolute; top: 1rem; width: 80%; z-index: 30;
-            background: rgba(0,0,0,0.8); padding: 0.5rem; border-radius: 0.5rem;
-            border: 1px solid rgba(255,255,255,0.2);
-            left: 50%; transform: translateX(-50%);
-        }
-        .hp-track { width: 100%; height: 12px; background: #334155; border-radius: 2px; overflow: hidden; }
-        .hp-fill { height: 100%; transition: width 0.3s ease; }
+        .hp-track { width: 100%; height: 8px; background: #334155; border-radius: 4px; overflow: hidden; position: relative; }
+        .hp-fill { height: 100%; position: absolute; top: 0; left: 0; transition: width 0.3s; z-index: 2; }
+        .hp-chip { height: 100%; position: absolute; top: 0; left: 0; background: white; transition: width 0.6s 0.3s; z-index: 1; }
 
-        /* Floating Text */
-        @keyframes floatUp {
-            0% { transform: translate(-50%, 0) scale(0.5); opacity: 0; }
-            10% { transform: translate(-50%, -20px) scale(1.5); opacity: 1; }
-            100% { transform: translate(-50%, -100px) scale(0.8); opacity: 0; }
+        /* Dice & Log */
+        .dice-area {
+            flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            border-top: 1px solid #334155; border-bottom: 1px solid #334155;
+            background: rgba(0,0,0,0.2);
+            position: relative;
         }
-        .damage-text {
-            position: absolute; left: 50%; top: 50%;
-            font-size: 5rem; font-weight: 900;
-            text-shadow: 4px 4px 0 #000; pointer-events: none; 
-            animation: floatUp 2s ease-out forwards; z-index: 50;
-        }
+        
+        .die-btn { width: 90px; height: 90px; cursor: pointer; transition: transform 0.2s; }
+        .die-btn:active { transform: scale(0.9); }
+        .die-disabled { filter: grayscale(1) opacity(0.5); cursor: not-allowed; }
+        .rolling svg { animation: roll 0.6s linear infinite; }
+        @keyframes roll { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-        /* Dice */
-        .die-btn {
-            width: 72px; height: 72px; transition: all 0.3s ease;
-            filter: grayscale(1) opacity(0.5); cursor: not-allowed;
+        /* Chat Section */
+        .chat-section {
+            height: 200px; display: flex; flex-direction: column;
+            background: #0f172a; border-top: 1px solid #334155;
         }
-        .die-active {
-            filter: grayscale(0) opacity(1) drop-shadow(0 0 10px rgba(220, 38, 38, 0.5));
-            cursor: pointer; animation: pulse 2s infinite;
-        }
-        .die-active:active { transform: scale(0.9); }
-        @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
-        @keyframes roll { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .rolling svg { animation: roll 0.5s linear infinite; }
-
-        /* Chat Toggle (Mobile) */
-        #chat-panel { transition: transform 0.3s ease; }
-        .chat-hidden { transform: translateY(110%); }
-        .chat-visible { transform: translateY(0); }
+        .chat-scroll { flex: 1; overflow-y: auto; padding: 0.5rem; font-family: sans-serif; font-size: 0.8rem; }
     </style>
 </head>
-<body>
+<body class="flex items-center justify-center h-screen bg-[url('https://images.unsplash.com/photo-1514933651103-005eec06c04b?q=80&w=1974&auto=format&fit=crop')] bg-cover bg-center">
 
-    <!-- === MAIN GAME CONTAINER === -->
-    <div class="game-container">
+    <!-- === LOBBY VIEW (New Intelligent Tavern) === -->
+    <div id="lobby-panel" class="z-10 widget-container items-center justify-center p-8 text-center animate-pop">
+        <i data-lucide="beer" class="w-16 h-16 text-yellow-600 mb-4 mx-auto"></i>
+        <h1 class="text-3xl font-bold text-yellow-500 mb-2">THE FIGHTING TAVERN</h1>
         
-        <!-- PLAYER 1 (Warrior) -->
-        <div id="hero-panel" class="split-panel">
-            <img id="hero-img" src="" class="split-image" alt="Warrior">
-            <div class="panel-frame"></div>
-            
-            <!-- P1 HUD -->
-            <div class="hp-container">
-                <div class="flex justify-between text-xs font-bold mb-1 text-blue-300">
-                    <span>WARRIOR (You)</span> <span id="hero-hp-text">50/50</span>
-                </div>
-                <div class="hp-track"><div id="hero-bar" class="hp-fill bg-blue-600" style="width: 100%"></div></div>
+        <!-- Live Status -->
+        <div class="bg-slate-800/80 rounded-lg p-4 w-full mb-6 border border-slate-600">
+            <div class="text-xs uppercase text-slate-400 font-bold mb-1 tracking-widest">Tavern Status</div>
+            <div id="lobby-status-text" class="text-lg text-white font-bold animate-pulse-glow">
+                Connecting to Realm...
             </div>
+            <div id="lobby-count" class="text-xs text-slate-500 mt-1"></div>
         </div>
 
-        <!-- PLAYER 2 (Ogre) -->
-        <div id="enemy-panel" class="split-panel">
-            <img id="enemy-img" src="" class="split-image" alt="Ogre">
-            <div class="panel-frame"></div>
-
-            <!-- P2 HUD -->
-            <div class="hp-container">
-                <div class="flex justify-between text-xs font-bold mb-1 text-red-300">
-                    <span>OGRE</span> <span id="enemy-hp-text">45/45</span>
-                </div>
-                <div class="hp-track"><div id="enemy-bar" class="hp-fill bg-red-600" style="width: 100%"></div></div>
-            </div>
+        <!-- Dynamic Actions -->
+        <div id="lobby-actions" class="w-full space-y-3">
+            <!-- Content injected by JS based on server state -->
         </div>
-
     </div>
 
-    <!-- === BOTTOM CONTROLS (Fixed) === -->
-    <div class="fixed bottom-0 left-0 w-full hud-panel pb-safe z-40 flex flex-col items-center justify-between px-4 py-2">
+    <!-- === GAME WIDGET (Hidden Initially) === -->
+    <div id="game-widget" class="widget-container hidden animate-pop relative">
         
-        <!-- Role Indicator -->
-        <div id="role-badge" class="absolute top-[-12px] bg-black border border-white/20 text-[10px] uppercase font-bold px-3 py-1 rounded-full text-slate-400">
+        <!-- Header -->
+        <div class="flex justify-between items-center p-3 bg-slate-900 border-b border-slate-700">
+            <div class="flex items-center gap-2">
+                <i data-lucide="crown" class="w-4 h-4 text-yellow-500"></i>
+                <span class="text-sm font-bold text-slate-300">BATTLE MAP</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="battle.resetGame()" class="text-slate-500 hover:text-yellow-400 transition-colors" title="Reset Game">
+                    <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+                </button>
+                <div class="w-px h-4 bg-slate-700 mx-1"></div>
+                <button onclick="app.closeWidget()" class="text-slate-500 hover:text-white" title="Leave Table">
+                    <i data-lucide="log-out" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Role Badge -->
+        <div id="role-alert" class="bg-blue-900/50 text-center text-[10px] uppercase font-bold py-1 text-blue-200 border-b border-blue-800">
             Connecting...
         </div>
 
-        <!-- Main Action Row -->
-        <div class="flex w-full items-center justify-between max-w-2xl">
+        <!-- Arena (Top Section) -->
+        <div class="p-4 grid grid-cols-2 gap-4 bg-slate-800/50">
             
-            <!-- Chat Toggle (Mobile) / Chat Box (Desktop) -->
-            <div class="flex-1">
-                <button onclick="battle.toggleChat()" class="md:hidden p-2 text-slate-400 hover:text-white">
-                    <i data-lucide="message-square" class="w-6 h-6"></i>
-                </button>
-                <!-- Desktop Chat Placeholder -->
-                <div class="hidden md:block text-xs text-slate-500 italic" id="desktop-chat-preview">Chat available</div>
-            </div>
-
-            <!-- Dice Center -->
-            <div class="flex flex-col items-center mx-4">
-                <div id="d20-btn" class="die-btn" onclick="battle.sendAttack()">
-                    <svg viewBox="0 0 100 100" class="w-full h-full overflow-visible">
-                        <path d="M50 5 L92 28 L92 72 L50 95 L8 72 L8 28 Z" class="fill-red-900 stroke-red-500 stroke-2" />
-                        <text x="50" y="62" text-anchor="middle" class="fill-white font-sans font-black text-2xl">20</text>
-                    </svg>
+            <!-- Hero Card -->
+            <div id="hero-card" class="char-card">
+                <img id="hero-img" src="" class="char-img" alt="Warrior">
+                <div class="w-full">
+                    <div class="flex justify-between text-[10px] mb-1 font-bold text-blue-300">
+                        <span>WARRIOR</span> <span id="hero-hp-text">50/50</span>
+                    </div>
+                    <div class="hp-track">
+                        <div id="hero-bar" class="hp-fill bg-blue-600" style="width: 100%"></div>
+                        <div id="hero-chip" class="hp-chip" style="width: 100%"></div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Log / Info -->
-            <div class="flex-1 text-right">
-                <div class="text-[10px] text-slate-500 uppercase tracking-widest">Action Log</div>
-                <div id="last-roll" class="text-sm font-bold text-white">-</div>
+            <!-- Enemy Card -->
+            <div id="enemy-card" class="char-card">
+                <img id="enemy-img" src="" class="char-img" alt="Ogre">
+                <div class="w-full">
+                    <div class="flex justify-between text-[10px] mb-1 font-bold text-red-300">
+                        <span>OGRE</span> <span id="enemy-hp-text">45/45</span>
+                    </div>
+                    <div class="hp-track">
+                        <div id="enemy-bar" class="hp-fill bg-red-600" style="width: 100%"></div>
+                        <div id="enemy-chip" class="hp-chip" style="width: 100%"></div>
+                    </div>
+                </div>
             </div>
+
         </div>
 
-        <!-- Detailed Combat Text (The "Math") -->
-        <div id="combat-details" class="text-xs text-yellow-500 font-mono mt-1 h-4"></div>
-
-    </div>
-
-    <!-- === CHAT OVERLAY (Mobile/Desktop Unified) === -->
-    <div id="chat-panel" class="fixed bottom-24 left-4 w-64 bg-slate-900/95 border border-slate-700 rounded-lg p-3 z-50 shadow-2xl chat-hidden md:chat-visible md:bottom-28">
-        <div class="flex justify-between items-center mb-2">
-            <span class="text-xs font-bold text-slate-400 uppercase">Tavern Chat</span>
-            <button onclick="battle.toggleChat()" class="md:hidden text-slate-500"><i data-lucide="x" class="w-3 h-3"></i></button>
+        <!-- Dice & Actions -->
+        <div class="dice-area">
+            <div id="action-log" class="absolute top-2 w-full text-center text-xs font-bold text-slate-400 px-4">
+                Roll for initiative...
+            </div>
+            <div id="d20-btn" class="die-btn die-disabled mt-4" onclick="battle.sendAttack()">
+                <svg viewBox="0 0 100 100" class="w-full h-full overflow-visible drop-shadow-lg">
+                    <path d="M50 5 L92 28 L92 72 L50 95 L8 72 L8 28 Z" class="fill-slate-800 stroke-slate-600 stroke-2 transition-colors" id="die-bg"/>
+                    <text x="50" y="62" text-anchor="middle" class="fill-slate-500 font-sans font-black text-2xl select-none" id="die-text">20</text>
+                </svg>
+            </div>
+            <div id="math-log" class="text-[10px] font-mono text-yellow-600 mt-2 h-4"></div>
         </div>
-        <div id="chat-messages" class="h-32 overflow-y-auto text-xs space-y-1 mb-2"></div>
-        <form onsubmit="battle.sendChat(event)" class="flex gap-1">
-            <input id="chat-input" class="w-full bg-black/50 border border-slate-700 rounded px-2 py-1 text-xs text-white" placeholder="Type..." autocomplete="off">
-        </form>
-    </div>
 
-    <!-- === GAME OVER OVERLAY === -->
-    <div id="overlay" class="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center hidden">
-        <h1 class="text-6xl text-white font-black mb-2" id="overlay-title">GAME OVER</h1>
-        <button onclick="battle.resetGame()" class="px-6 py-2 bg-red-800 text-white rounded font-bold border border-red-500">PLAY AGAIN</button>
+        <!-- Chat -->
+        <div class="chat-section">
+            <div id="chat-messages" class="chat-scroll space-y-2">
+                <div class="text-slate-500 text-center italic text-xs mt-2">-- Battle Log Started --</div>
+            </div>
+            <form onsubmit="battle.sendChat(event)" class="p-2 bg-slate-900 flex gap-2 border-t border-slate-700">
+                <input id="chat-input" class="flex-1 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-yellow-600" placeholder="Type a message..." autocomplete="off">
+                <button type="submit" class="bg-slate-700 hover:bg-slate-600 text-white rounded px-3 py-1"><i data-lucide="send" class="w-3 h-3"></i></button>
+            </form>
+        </div>
+
+        <!-- Overlay -->
+        <div id="overlay" class="absolute inset-0 z-50 bg-black/90 flex flex-col items-center justify-center hidden">
+            <h1 class="text-4xl text-yellow-500 font-bold mb-4" id="overlay-title">GAME OVER</h1>
+            <button onclick="battle.resetGame()" class="px-6 py-2 bg-red-900 border border-red-500 rounded text-white font-bold hover:bg-red-800">REMATCH</button>
+        </div>
+
     </div>
 
     <script>
         const RAILWAY_URL = "https://fight-tavern-production.up.railway.app";
+        // const RAILWAY_URL = "http://localhost:3000"; 
+        
         const IMAGES = {
-            warrior: "https://image.pollinations.ai/prompt/fantasy%20warrior%20portrait%20rugged%20face%20scarred%20armor%20heroic%20lighting%201970s%20dnd%20art%20style%20oil%20painting?width=600&height=1024&nologin=true&seed=99",
-            ogre: "https://image.pollinations.ai/prompt/fearsome%20ogre%20portrait%20fantasy%20art%201970s%20style?width=600&height=1024&nologin=true&seed=505",
+            warrior: "https://image.pollinations.ai/prompt/fantasy%20warrior%20portrait%20rugged%20face%20scarred%20armor%20heroic%20lighting%201970s%20dnd%20art%20style%20oil%20painting?width=200&height=200&nologin=true&seed=99",
+            ogre: "https://image.pollinations.ai/prompt/fearsome%20ogre%20portrait%20fantasy%20art%201970s%20style?width=200&height=200&nologin=true&seed=505",
         };
 
-        const socket = io(RAILWAY_URL);
+        const socket = io(RAILWAY_URL); // Connect immediately to get lobby stats
+
+        const app = {
+            openGame(mode) {
+                // Send join request with specific mode
+                socket.emit('join_game', { mode: mode });
+                
+                document.getElementById('lobby-panel').classList.add('hidden');
+                document.getElementById('game-widget').classList.remove('hidden');
+                battle.init();
+            },
+            closeWidget() {
+                // Logic to "leave" the table (disconnect or just hide?)
+                // For now, we reload to ensure clean state or just hide
+                document.getElementById('game-widget').classList.add('hidden');
+                document.getElementById('lobby-panel').classList.remove('hidden');
+                // Optional: socket.emit('leave_game');
+            }
+        };
+
+        // Lobby Logic
+        socket.on('lobby_stats', (stats) => {
+            const statusText = document.getElementById('lobby-status-text');
+            const actionsDiv = document.getElementById('lobby-actions');
+            const countText = document.getElementById('lobby-count');
+            
+            countText.innerText = `${stats.connected} Patrons in the Tavern`;
+
+            let actionHtml = '';
+
+            if (stats.gameInProgress) {
+                statusText.innerText = "A Battle is Raging!";
+                statusText.className = "text-lg text-red-400 font-bold animate-pulse";
+                actionHtml = `
+                    <button onclick="app.openGame('spectate')" class="w-full bg-slate-700 hover:bg-slate-600 text-white border border-slate-500 py-3 rounded-lg font-bold flex items-center justify-center gap-2">
+                        <i data-lucide="eye" class="w-5 h-5"></i> Watch Battle
+                    </button>
+                `;
+            } else if (stats.waitingForOpponent) {
+                statusText.innerText = "Warrior Waiting for Challenger!";
+                statusText.className = "text-lg text-yellow-400 font-bold animate-pulse";
+                actionHtml = `
+                    <button onclick="app.openGame('pvp')" class="w-full bg-yellow-600 hover:bg-yellow-500 text-white border border-yellow-400 py-3 rounded-lg font-bold flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(234,179,8,0.3)]">
+                        <i data-lucide="swords" class="w-5 h-5"></i> Join the Fight!
+                    </button>
+                `;
+            } else {
+                statusText.innerText = "The Arena is Empty";
+                statusText.className = "text-lg text-slate-300 font-bold";
+                actionHtml = `
+                    <button onclick="app.openGame('pvp')" class="w-full bg-blue-900 hover:bg-blue-800 text-blue-100 border border-blue-700 py-3 rounded-lg font-bold flex items-center justify-center gap-2 mb-2">
+                        <i data-lucide="users" class="w-5 h-5"></i> Wait for a Human
+                    </button>
+                    <button onclick="app.openGame('pve')" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-600 py-2 rounded-lg font-bold text-sm flex items-center justify-center gap-2">
+                        <i data-lucide="bot" class="w-4 h-4"></i> Practice vs CPU
+                    </button>
+                `;
+            }
+
+            actionsDiv.innerHTML = actionHtml;
+            lucide.createIcons();
+        });
 
         const battle = {
-            myRole: null, isMyTurn: false, chatOpen: false,
+            myRole: null, isMyTurn: false,
 
             init() {
                 document.getElementById('hero-img').src = IMAGES.warrior;
@@ -204,12 +292,25 @@
             },
 
             setupSocket() {
+                // Ensure we don't double-bind listeners if init called twice
+                socket.off('welcome');
+                socket.off('game_update');
+                socket.off('chat_message');
+
                 socket.on('welcome', (data) => {
                     this.myRole = data.role;
-                    const badge = document.getElementById('role-badge');
-                    if(this.myRole === 'hero') { badge.innerText = "You are the Warrior"; badge.className += " text-blue-400 border-blue-900"; }
-                    else if(this.myRole === 'enemy') { badge.innerText = "You are the Ogre"; badge.className += " text-red-400 border-red-900"; }
-                    else { badge.innerText = "Spectator Mode"; }
+                    const alert = document.getElementById('role-alert');
+                    
+                    if(this.myRole === 'hero') { 
+                        alert.innerText = "YOU ARE THE WARRIOR"; 
+                        alert.className = "bg-blue-900/80 text-center text-[10px] uppercase font-bold py-1 text-blue-200 border-b border-blue-700";
+                    } else if(this.myRole === 'enemy') { 
+                        alert.innerText = "YOU ARE THE OGRE"; 
+                        alert.className = "bg-red-900/80 text-center text-[10px] uppercase font-bold py-1 text-red-200 border-b border-red-700";
+                    } else { 
+                        alert.innerText = "SPECTATOR MODE"; 
+                        alert.className = "bg-slate-800 text-center text-[10px] uppercase font-bold py-1 text-slate-400 border-b border-slate-700";
+                    }
                     this.updateUI(data.state);
                 });
 
@@ -222,10 +323,13 @@
                 socket.on('chat_message', (data) => {
                     const box = document.getElementById('chat-messages');
                     const color = data.role === 'hero' ? 'text-blue-400' : (data.role === 'enemy' ? 'text-red-400' : 'text-slate-500');
-                    const name = data.role === 'hero' ? 'WARRIOR' : (data.role === 'enemy' ? 'OGRE' : 'Spec');
-                    box.innerHTML += `<div class="break-words"><span class="font-bold ${color}">${name}:</span> <span class="text-slate-300">${data.text}</span></div>`;
+                    const name = data.role === 'hero' ? 'WAR' : (data.role === 'enemy' ? 'OGR' : (data.role === 'bot' ? 'CPU' : 'SPEC'));
+                    
+                    const el = document.createElement('div');
+                    el.className = "px-2 py-1 hover:bg-slate-800/50 rounded";
+                    el.innerHTML = `<span class="font-bold ${color} mr-1">[${name}]</span><span class="text-slate-300 text-xs">${data.text}</span>`;
+                    box.appendChild(el);
                     box.scrollTop = box.scrollHeight;
-                    // Show a notification dot? (Optional improvement)
                 });
             },
 
@@ -233,18 +337,6 @@
                 if(!this.isMyTurn) return;
                 document.getElementById('d20-btn').classList.add('rolling');
                 socket.emit('attack');
-            },
-
-            toggleChat() {
-                this.chatOpen = !this.chatOpen;
-                const panel = document.getElementById('chat-panel');
-                if(this.chatOpen) {
-                    panel.classList.remove('chat-hidden');
-                    panel.classList.add('chat-visible');
-                } else {
-                    panel.classList.add('chat-hidden');
-                    panel.classList.remove('chat-visible');
-                }
             },
 
             sendChat(e) {
@@ -259,13 +351,15 @@
             resetGame() { socket.emit('reset_game'); },
 
             updateUI(state) {
-                // HP
-                const setBar = (id, cur, max) => {
+                // HP & Bars
+                const setStats = (id, cur, max) => {
                     document.getElementById(id + '-hp-text').innerText = `${cur}/${max}`;
-                    document.getElementById(id + '-bar').style.width = `${(cur/max)*100}%`;
+                    const pct = (cur/max)*100;
+                    document.getElementById(id + '-bar').style.width = `${pct}%`;
+                    setTimeout(() => document.getElementById(id + '-chip').style.width = `${pct}%`, 500);
                 };
-                setBar('hero', state.hero.hp, state.hero.max);
-                setBar('enemy', state.enemy.hp, state.enemy.max);
+                setStats('hero', state.hero.hp, state.hero.max);
+                setStats('enemy', state.enemy.hp, state.enemy.max);
 
                 // Game Over
                 if(state.gameOver) {
@@ -277,58 +371,65 @@
                 // Turn Logic
                 this.isMyTurn = (this.myRole === state.turn);
                 const btn = document.getElementById('d20-btn');
+                const dieBg = document.getElementById('die-bg');
+                const dieText = document.getElementById('die-text');
+                
                 btn.classList.remove('rolling');
 
-                if(this.isMyTurn) {
-                    btn.classList.add('die-active');
-                    document.getElementById('last-roll').innerText = "YOUR TURN";
-                    document.getElementById('last-roll').className = "text-sm font-bold text-yellow-400 animate-pulse";
+                // Cards Active/Inactive styling
+                const heroCard = document.getElementById('hero-card');
+                const enemyCard = document.getElementById('enemy-card');
+                
+                if(state.turn === 'hero') {
+                    heroCard.classList.add('active-turn'); heroCard.classList.remove('inactive-turn');
+                    enemyCard.classList.remove('active-turn'); enemyCard.classList.add('inactive-turn');
                 } else {
-                    btn.classList.remove('die-active');
-                    const who = state.turn === 'hero' ? "WARRIOR" : "OGRE";
-                    document.getElementById('last-roll').innerText = `${who}'S TURN`;
-                    document.getElementById('last-roll').className = "text-sm font-bold text-slate-500";
+                    enemyCard.classList.add('active-turn'); enemyCard.classList.remove('inactive-turn');
+                    heroCard.classList.remove('active-turn'); heroCard.classList.add('inactive-turn');
                 }
 
-                // Active Panel
-                const p1 = document.getElementById('hero-panel');
-                const p2 = document.getElementById('enemy-panel');
-                if(state.turn === 'hero') { p1.classList.add('active-turn'); p1.classList.remove('inactive-turn'); p2.classList.remove('active-turn'); p2.classList.add('inactive-turn'); }
-                else { p2.classList.add('active-turn'); p2.classList.remove('inactive-turn'); p1.classList.remove('active-turn'); p1.classList.add('inactive-turn'); }
+                // Dice State
+                if(this.isMyTurn) {
+                    btn.classList.remove('die-disabled');
+                    dieBg.classList.replace('fill-slate-800', 'fill-red-900');
+                    dieBg.classList.replace('stroke-slate-600', 'stroke-red-500');
+                    dieText.classList.replace('fill-slate-500', 'fill-white');
+                    document.getElementById('action-log').innerText = "YOUR TURN!";
+                    document.getElementById('action-log').className = "absolute top-2 w-full text-center text-xs font-bold text-yellow-400 animate-pulse px-4";
+                } else {
+                    btn.classList.add('die-disabled');
+                    dieBg.classList.replace('fill-red-900', 'fill-slate-800');
+                    dieBg.classList.replace('stroke-red-500', 'stroke-slate-600');
+                    dieText.classList.replace('fill-white', 'fill-slate-500');
+                    const who = state.turn === 'hero' ? "Warrior" : "Ogre";
+                    document.getElementById('action-log').innerText = `${who} is attacking...`;
+                    document.getElementById('action-log').className = "absolute top-2 w-full text-center text-xs font-bold text-slate-500 px-4";
+                }
             },
 
             handleAction(action) {
-                // Combat Text
-                document.getElementById('last-roll').innerText = action.log.msg;
-                document.getElementById('last-roll').className = `text-sm font-bold ${action.log.color}`;
-                document.getElementById('combat-details').innerText = action.log.sub; // The Math
+                // Log
+                document.getElementById('action-log').innerText = action.log.msg;
+                document.getElementById('action-log').className = `absolute top-2 w-full text-center text-xs font-bold px-4 ${action.log.color}`;
+                document.getElementById('math-log').innerText = action.log.sub || "";
 
-                // Visuals
-                const targetId = action.attacker === 'hero' ? 'enemy-panel' : 'hero-panel';
-                const panel = document.getElementById(targetId);
-                
+                // Visual Hit
+                const targetId = action.attacker === 'hero' ? 'enemy-card' : 'hero-card';
+                const card = document.getElementById(targetId);
+
                 if(action.isHit) {
-                    // Flash Red
-                    panel.style.backgroundColor = 'red';
-                    setTimeout(() => panel.style.backgroundColor = '', 100);
+                    card.classList.add('animate-shake');
+                    setTimeout(() => card.classList.remove('animate-shake'), 500);
                     
-                    // Floating Text
-                    const el = document.createElement('div');
-                    el.className = 'damage-text text-red-500';
-                    el.innerText = `-${action.damage}`;
-                    panel.appendChild(el);
-                    setTimeout(() => el.remove(), 2000);
-                } else {
-                    const el = document.createElement('div');
-                    el.className = 'damage-text text-slate-400 text-6xl opacity-50';
-                    el.innerText = "MISS";
-                    panel.appendChild(el);
-                    setTimeout(() => el.remove(), 2000);
+                    const oldBorder = card.style.borderColor;
+                    card.style.borderColor = 'red';
+                    setTimeout(() => card.style.borderColor = oldBorder, 300);
                 }
             }
         };
-
-        window.onload = () => battle.init();
+        
+        // Initial setup for icons in lobby
+        lucide.createIcons();
     </script>
 </body>
 </html>
