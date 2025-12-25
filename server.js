@@ -6,18 +6,35 @@ const io = new Server(server, {
     cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
-// --- 1. THE BRAIN: CHARACTER ROSTER ---
-// This is the source of truth. If you change HP here, it updates for everyone.
+// --- 1. THE BRAIN: ENHANCED CHARACTER ROSTER ---
+// Added 'cr' (Challenge Rating) and attributes for flavor/calculation
 const CHARACTERS = {
-    warrior: { name: 'Warrior', hp: 50, max: 50, ac: 14, dmgDie: 8, dmgMod: 2, img: 'https://image.pollinations.ai/prompt/fantasy%20warrior%20portrait%20rugged%20face%20scarred%20armor%20heroic%20lighting%201970s%20dnd%20art%20style%20oil%20painting?width=400&height=400&nologin=true&seed=99' },
-    mage: { name: 'Mage', hp: 30, max: 30, ac: 11, dmgDie: 10, dmgMod: 4, img: 'https://image.pollinations.ai/prompt/mystical%20wizard%20portrait%20glowing%20eyes%20blue%20robes%20fantasy%20art?width=400&height=400&nologin=true&seed=42' },
-    rogue: { name: 'Rogue', hp: 35, max: 35, ac: 13, dmgDie: 6, dmgMod: 5, img: 'https://image.pollinations.ai/prompt/hooded%20rogue%20assassin%20shadows%20dagger%20fantasy%20art?width=400&height=400&nologin=true&seed=77' },
-    cleric: { name: 'Cleric', hp: 45, max: 45, ac: 16, dmgDie: 6, dmgMod: 1, img: 'https://image.pollinations.ai/prompt/holy%20cleric%20fantasy%20gold%20armor%20healing%20light?width=400&height=400&nologin=true&seed=101' },
-    ogre: { name: 'Ogre', hp: 60, max: 60, ac: 12, dmgDie: 6, dmgMod: 3, img: 'https://image.pollinations.ai/prompt/fearsome%20ogre%20portrait%20fantasy%20art%201970s%20style?width=400&height=400&nologin=true&seed=505' },
-    dragon: { name: 'Red Dragon', hp: 80, max: 80, ac: 15, dmgDie: 12, dmgMod: 3, img: 'https://image.pollinations.ai/prompt/red%20dragon%20head%20roaring%20fire%20fantasy%20art%20epic?width=400&height=400&nologin=true&seed=666' }
+    warrior: { 
+        name: 'Warrior', hp: 50, max: 50, ac: 15, 
+        stats: { str: 16, dex: 12, con: 14 },
+        dmgDie: 8, dmgMod: 3, attacks: 1, cr: 1,
+        img: 'https://image.pollinations.ai/prompt/fantasy%20warrior%20portrait%20rugged%20face%20scarred%20armor%20heroic%20lighting%201970s%20dnd%20art%20style%20oil%20painting?width=400&height=400&nologin=true&seed=99' 
+    },
+    rogue: { 
+        name: 'Rogue', hp: 35, max: 35, ac: 14, 
+        stats: { str: 10, dex: 18, con: 12 },
+        dmgDie: 6, dmgMod: 4, attacks: 1, cr: 1,
+        img: 'https://image.pollinations.ai/prompt/hooded%20rogue%20assassin%20shadows%20dagger%20fantasy%20art?width=400&height=400&nologin=true&seed=77' 
+    },
+    ogre: { 
+        name: 'Ogre', hp: 59, max: 59, ac: 11, 
+        stats: { str: 19, dex: 8, con: 16 },
+        dmgDie: 10, dmgMod: 4, attacks: 1, cr: 2, // Harder than lvl 1 warrior
+        img: 'https://image.pollinations.ai/prompt/fearsome%20ogre%20portrait%20fantasy%20art%201970s%20style?width=400&height=400&nologin=true&seed=505' 
+    },
+    dragon: { 
+        name: 'Red Dragon', hp: 110, max: 110, ac: 17, 
+        stats: { str: 24, dex: 10, con: 20 },
+        dmgDie: 12, dmgMod: 6, attacks: 2, cr: 5, // Deadly Boss
+        img: 'https://image.pollinations.ai/prompt/red%20dragon%20head%20roaring%20fire%20fantasy%20art%20epic?width=400&height=400&nologin=true&seed=666' 
+    }
 };
 
-// Default empty state
 const INITIAL_STATE = {
     hero: { ...CHARACTERS.warrior },
     enemy: { ...CHARACTERS.ogre },
@@ -29,7 +46,7 @@ const INITIAL_STATE = {
 let gameState = JSON.parse(JSON.stringify(INITIAL_STATE));
 let players = {}; 
 let activeChallenger = null;
-let challengerChar = 'warrior'; // Stores the challenger's choice
+let challengerProfile = null; // Store full object for custom chars
 let resetTimeout = null;
 
 function broadcastLobbyStats() {
@@ -56,33 +73,42 @@ function performAttack(attackerKey, targetKey) {
     const attacker = gameState[attackerKey];
     const target = gameState[targetKey];
     
-    // 1. Roll to Hit
+    // Attack Logic
+    // If they have multiple attacks (like Dragon), this loop handles it roughly
+    // For simplicity in this version, we stick to 1 main attack per turn update
+    
     const d20 = Math.floor(Math.random() * 20) + 1;
-    const hitTotal = d20 + (attacker.dmgMod > 2 ? 3 : 1); // Simple hit bonus logic
-    const isHit = d20 === 20 || hitTotal >= target.ac;
+    // Hit Bonus = Strength Mod (approx dmgMod) + Proficiency (2)
+    const hitBonus = (attacker.dmgMod || 0) + 2; 
+    const hitTotal = d20 + hitBonus;
+    
     const isCrit = d20 === 20;
+    const isHit = isCrit || hitTotal >= target.ac;
     
     let damage = 0;
     let logMessage = '', logColor = '', logSub = '';
 
     if (isHit) {
-        // 2. Calculate Damage based on character stats
-        damage = Math.floor(Math.random() * attacker.dmgDie) + 1 + attacker.dmgMod;
-        if (isCrit) damage += Math.floor(Math.random() * attacker.dmgDie) + 1;
+        const die = attacker.dmgDie || 6;
+        const mod = attacker.dmgMod || 0;
+        
+        damage = Math.floor(Math.random() * die) + 1 + mod;
+        if (isCrit) damage += Math.floor(Math.random() * die) + 1;
         
         target.hp = Math.max(0, target.hp - damage);
         
-        logMessage = isCrit ? `CRIT! ${attacker.name} deals ${damage}!` : `${attacker.name} hits for ${damage} damage!`;
+        logMessage = isCrit ? `CRITICAL! ${attacker.name} deals ${damage}!` : `${attacker.name} hits for ${damage} damage!`;
         logColor = isCrit ? 'text-yellow-400' : 'text-red-400';
     } else {
         logMessage = `${attacker.name} missed!`;
         logColor = 'text-slate-400';
     }
-    logSub = `Rolled ${d20} vs AC ${target.ac}`;
+    
+    logSub = `Rolled ${d20} (+${hitBonus}) vs AC ${target.ac}`;
 
     if (target.hp <= 0) {
         gameState.gameOver = true;
-        logMessage = `${target.name} defeated!`;
+        logMessage = `${target.name} was defeated!`;
         logColor = 'text-yellow-400 font-black text-lg';
     } else {
         gameState.turn = targetKey;
@@ -108,22 +134,28 @@ io.on('connection', (socket) => {
 
     socket.on('join_game', (data) => {
         const requestedMode = data.mode || 'pvp';
-        const charId = data.charId || 'warrior';
+        // Handle Custom Character passed from Client
+        let charProfile;
+        if (data.customProfile) {
+            charProfile = data.customProfile; // Use the stats sent by client
+        } else {
+            charProfile = { ...CHARACTERS[data.charId || 'warrior'] };
+        }
 
         if (requestedMode === 'spectate') {
             players[socket.id] = 'spectator';
             socket.emit('welcome', { role: 'spectator', state: gameState });
         } 
         else if (requestedMode === 'pve') {
-            // Player vs Computer
             gameState = JSON.parse(JSON.stringify(INITIAL_STATE));
             gameState.mode = 'pve';
             
-            // Set Player Character
-            gameState.hero = { ...CHARACTERS[charId] };
+            // Set Player
+            gameState.hero = charProfile;
             
-            // Set AI Character (Default Ogre, or random)
-            gameState.enemy = { ...CHARACTERS['ogre'] };
+            // Set Enemy (If data.enemyId is passed, use it, else Ogre)
+            const enemyId = data.enemyId || 'ogre';
+            gameState.enemy = { ...CHARACTERS[enemyId] };
 
             players[socket.id] = 'hero';
             socket.emit('welcome', { role: 'hero', state: gameState });
@@ -133,13 +165,15 @@ io.on('connection', (socket) => {
 
     socket.on('send_challenge', (data) => {
         activeChallenger = socket.id;
-        challengerChar = data.charId || 'warrior'; // Remember what they picked
+        // Store the full custom profile if provided, or lookup ID
+        if (data.customProfile) challengerProfile = data.customProfile;
+        else challengerProfile = { ...CHARACTERS[data.charId || 'warrior'] };
+        
         socket.broadcast.emit('challenge_received');
     });
 
     socket.on('accept_challenge', (data) => {
         if (!activeChallenger || !io.sockets.sockets.get(activeChallenger)) return; 
-        
         if(resetTimeout) clearTimeout(resetTimeout);
 
         gameState = JSON.parse(JSON.stringify(INITIAL_STATE));
@@ -147,18 +181,20 @@ io.on('connection', (socket) => {
         
         // 1. Assign Challenger (Hero)
         players[activeChallenger] = 'hero';
-        gameState.hero = { ...CHARACTERS[challengerChar] };
+        gameState.hero = challengerProfile;
 
         // 2. Assign Accepter (Enemy/Rival)
         players[socket.id] = 'enemy';
-        const myChar = data.charId || 'ogre';
-        gameState.enemy = { ...CHARACTERS[myChar] };
+        let myProfile;
+        if(data.customProfile) myProfile = data.customProfile;
+        else myProfile = { ...CHARACTERS[data.charId || 'warrior'] };
+        gameState.enemy = myProfile;
 
-        // Start Game
         io.to(activeChallenger).emit('welcome', { role: 'hero', state: gameState });
         io.to(socket.id).emit('welcome', { role: 'enemy', state: gameState });
         
         activeChallenger = null;
+        challengerProfile = null;
         broadcastLobbyStats();
         io.emit('game_update', { state: gameState });
     });
@@ -201,7 +237,6 @@ io.on('connection', (socket) => {
         if ((role === 'hero' && gameState.mode === 'pve') || Object.keys(players).length === 0) {
             gameState = JSON.parse(JSON.stringify(INITIAL_STATE));
         }
-        
         broadcastLobbyStats();
     });
 });
