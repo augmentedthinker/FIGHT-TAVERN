@@ -81,6 +81,15 @@ io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
     broadcastLobbyStats();
 
+    // --- REJOIN MECHANISM (Fix for Limbo State) ---
+    socket.on('check_rejoin', () => {
+        const role = players[socket.id];
+        // If server thinks this socket is already playing, send them back into battle
+        if (role && (role === 'hero' || role === 'enemy')) {
+            socket.emit('welcome', { role: role, state: gameState });
+        }
+    });
+
     socket.on('join_game', (data) => {
         const requestedMode = data.mode || 'pvp';
         if (requestedMode === 'spectate') {
@@ -112,8 +121,10 @@ io.on('connection', (socket) => {
         players[activeChallenger] = 'hero';
         players[socket.id] = 'enemy';
 
+        // Send welcome to both players
         io.to(activeChallenger).emit('welcome', { role: 'hero', state: gameState });
         io.to(socket.id).emit('welcome', { role: 'enemy', state: gameState });
+        
         activeChallenger = null;
         broadcastLobbyStats();
         io.emit('game_update', { state: gameState });
@@ -149,8 +160,7 @@ io.on('connection', (socket) => {
         // If PvP player disconnects
         if ((role === 'hero' || role === 'enemy') && gameState.mode === 'pvp') {
             io.emit('player_left', { role: role });
-            // DO NOT reset immediately. Wait for the other player to click "Back to Lobby"
-            // or reset after 30s to clean up zombies
+            // Wait for the other player to click "Back to Lobby" or reset after 30s
             resetTimeout = setTimeout(() => {
                 gameState = JSON.parse(JSON.stringify(INITIAL_STATE));
                 broadcastLobbyStats();
