@@ -441,122 +441,122 @@
                 <div id="canvas-container"></div>
             </div>
         </div>
+    </div>
 
-        <!-- NEW: FIGHT WIDGET MODAL WRAPPER -->
-        <div id="fight-modal">
+    <!-- NEW: FIGHT WIDGET MODAL WRAPPER (Moved outside of sanctuary for global access) -->
+    <div id="fight-modal">
+        
+        <!-- === LOBBY VIEW === -->
+        <div id="lobby-panel" class="z-10 widget-container items-center justify-center p-8 text-center animate-pop h-auto min-h-[500px]">
+            <button onclick="toggleFightModal()" class="absolute top-2 right-2 text-slate-500 hover:text-white"><i data-lucide="x" class="w-6 h-6"></i></button>
+            <i data-lucide="beer" class="w-16 h-16 text-yellow-600 mb-4 mx-auto"></i>
+            <h1 class="text-3xl font-bold text-yellow-500 mb-2">THE FIGHTING TAVERN</h1>
             
-            <!-- === LOBBY VIEW === -->
-            <div id="lobby-panel" class="z-10 widget-container items-center justify-center p-8 text-center animate-pop h-auto min-h-[500px]">
-                <button onclick="toggleFightModal()" class="absolute top-2 right-2 text-slate-500 hover:text-white"><i data-lucide="x" class="w-6 h-6"></i></button>
-                <i data-lucide="beer" class="w-16 h-16 text-yellow-600 mb-4 mx-auto"></i>
-                <h1 class="text-3xl font-bold text-yellow-500 mb-2">THE FIGHTING TAVERN</h1>
-                
-                <div class="bg-slate-800/80 rounded-lg p-4 w-full mb-6 border border-slate-600">
-                    <div class="text-xs uppercase text-slate-400 font-bold mb-1 tracking-widest">Tavern Status</div>
-                    <div id="lobby-status-text" class="text-lg text-white font-bold animate-pulse-glow">Connecting...</div>
-                    <div id="lobby-count" class="text-xs text-slate-500 mt-1"></div>
-                </div>
+            <div class="bg-slate-800/80 rounded-lg p-4 w-full mb-6 border border-slate-600">
+                <div class="text-xs uppercase text-slate-400 font-bold mb-1 tracking-widest">Tavern Status</div>
+                <div id="lobby-status-text" class="text-lg text-white font-bold animate-pulse-glow">Connecting...</div>
+                <div id="lobby-count" class="text-xs text-slate-500 mt-1"></div>
+            </div>
 
-                <!-- Dynamic Lobby Actions -->
-                <div id="lobby-actions" class="w-full space-y-3"></div>
-                
-                <!-- Challenge Notification (Hidden by default) -->
-                <div id="challenge-modal" class="hidden absolute inset-0 bg-black/90 flex flex-col items-center justify-center p-6 z-50 animate-pop">
-                    <h2 class="text-2xl text-yellow-500 font-bold mb-2">CHALLENGE!</h2>
-                    <p class="text-slate-300 text-sm mb-6">A rival warrior wants to fight.</p>
-                    <button onclick="app.acceptChallenge()" class="w-full bg-red-600 hover:bg-red-500 text-white py-4 rounded-lg font-bold mb-3 animate-pulse">
-                        ACCEPT BATTLE
-                    </button>
-                    <div class="text-xs text-slate-500">Wait to decline...</div>
+            <!-- Dynamic Lobby Actions -->
+            <div id="lobby-actions" class="w-full space-y-3"></div>
+            
+            <!-- Challenge Notification (Hidden by default) -->
+            <div id="challenge-modal" class="hidden absolute inset-0 bg-black/90 flex flex-col items-center justify-center p-6 z-50 animate-pop">
+                <h2 class="text-2xl text-yellow-500 font-bold mb-2">CHALLENGE!</h2>
+                <p class="text-slate-300 text-sm mb-6">A rival warrior wants to fight.</p>
+                <button onclick="app.acceptChallenge()" class="w-full bg-red-600 hover:bg-red-500 text-white py-4 rounded-lg font-bold mb-3 animate-pulse">
+                    ACCEPT BATTLE
+                </button>
+                <div class="text-xs text-slate-500">Wait to decline...</div>
+            </div>
+        </div>
+
+        <!-- === GAME WIDGET === -->
+        <div id="game-widget" class="widget-container hidden animate-pop">
+            
+            <!-- Header -->
+            <div class="flex justify-between items-center px-3 py-2 bg-slate-900/90 border-b border-slate-700 z-30">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="swords" class="w-4 h-4 text-yellow-500"></i>
+                    <div id="role-alert" class="text-xs font-bold text-slate-300 uppercase tracking-wider">Loading...</div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="battle.resetGame()" class="text-slate-500 hover:text-yellow-400"><i data-lucide="rotate-ccw" class="w-4 h-4"></i></button>
+                    <button onclick="toggleFightModal()" class="text-slate-500 hover:text-white"><i data-lucide="log-out" class="w-4 h-4"></i></button>
                 </div>
             </div>
 
-            <!-- === GAME WIDGET === -->
-            <div id="game-widget" class="widget-container hidden animate-pop">
+            <!-- BATTLE STAGE -->
+            <div class="battle-stage">
                 
-                <!-- Header -->
-                <div class="flex justify-between items-center px-3 py-2 bg-slate-900/90 border-b border-slate-700 z-30">
-                    <div class="flex items-center gap-2">
-                        <i data-lucide="swords" class="w-4 h-4 text-yellow-500"></i>
-                        <div id="role-alert" class="text-xs font-bold text-slate-300 uppercase tracking-wider">Loading...</div>
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <button onclick="battle.resetGame()" class="text-slate-500 hover:text-yellow-400"><i data-lucide="rotate-ccw" class="w-4 h-4"></i></button>
-                        <button onclick="toggleFightModal()" class="text-slate-500 hover:text-white"><i data-lucide="log-out" class="w-4 h-4"></i></button>
-                    </div>
-                </div>
-
-                <!-- BATTLE STAGE -->
-                <div class="battle-stage">
-                    
-                    <!-- Hero Panel -->
-                    <div id="hero-card" class="char-panel group">
-                        <img id="hero-img" src="" class="char-img" alt="Warrior">
-                        <div class="char-hud">
-                            <div class="flex justify-between text-xs font-bold text-blue-300 mb-1">
-                                <span class="drop-shadow-md">WARRIOR</span> <span id="hero-hp-text">50/50</span>
-                            </div>
-                            <div class="hp-track">
-                                <div id="hero-bar" class="hp-fill bg-blue-500" style="width: 100%"></div>
-                                <div id="hero-chip" class="hp-chip" style="width: 100%"></div>
-                            </div>
+                <!-- Hero Panel -->
+                <div id="hero-card" class="char-panel group">
+                    <img id="hero-img" src="" class="char-img" alt="Warrior">
+                    <div class="char-hud">
+                        <div class="flex justify-between text-xs font-bold text-blue-300 mb-1">
+                            <span class="drop-shadow-md">WARRIOR</span> <span id="hero-hp-text">50/50</span>
                         </div>
-                    </div>
-
-                    <!-- Enemy Panel -->
-                    <div id="enemy-card" class="char-panel group">
-                        <img id="enemy-img" src="" class="char-img" alt="Ogre">
-                        <div class="char-hud">
-                            <div class="flex justify-between text-xs font-bold text-red-300 mb-1">
-                                <span class="drop-shadow-md">OGRE</span> <span id="enemy-hp-text">45/45</span>
-                            </div>
-                            <div class="hp-track">
-                                <div id="enemy-bar" class="hp-fill bg-red-500" style="width: 100%"></div>
-                                <div id="enemy-chip" class="hp-chip" style="width: 100%"></div>
-                            </div>
+                        <div class="hp-track">
+                            <div id="hero-bar" class="hp-fill bg-blue-500" style="width: 100%"></div>
+                            <div id="hero-chip" class="hp-chip" style="width: 100%"></div>
                         </div>
                     </div>
                 </div>
 
-                <!-- CONTROL DECK -->
-                <div class="control-deck">
-                    <div class="flex-1 text-left pr-4">
-                        <div class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Battle Log</div>
-                        <div id="action-log" class="text-sm font-bold text-slate-200 truncate leading-tight">Roll for initiative...</div>
-                        <div id="math-log" class="text-[10px] font-mono text-yellow-600/80 h-3 leading-none mt-1"></div>
-                    </div>
-
-                    <div id="d20-btn" class="die-btn-widget die-disabled" onclick="battle.sendAttack()">
-                        <svg viewBox="0 0 100 100" class="w-full h-full overflow-visible">
-                            <path d="M50 5 L92 28 L92 72 L50 95 L8 72 L8 28 Z" class="fill-slate-800 stroke-slate-600 stroke-2 transition-colors" id="die-bg"/>
-                            <text x="50" y="62" text-anchor="middle" class="fill-slate-500 font-sans font-black text-2xl select-none" id="die-text">20</text>
-                        </svg>
+                <!-- Enemy Panel -->
+                <div id="enemy-card" class="char-panel group">
+                    <img id="enemy-img" src="" class="char-img" alt="Ogre">
+                    <div class="char-hud">
+                        <div class="flex justify-between text-xs font-bold text-red-300 mb-1">
+                            <span class="drop-shadow-md">OGRE</span> <span id="enemy-hp-text">45/45</span>
+                        </div>
+                        <div class="hp-track">
+                            <div id="enemy-bar" class="hp-fill bg-red-500" style="width: 100%"></div>
+                            <div id="enemy-chip" class="hp-chip" style="width: 100%"></div>
+                        </div>
                     </div>
                 </div>
-
-                <!-- CHAT -->
-                <div class="chat-section">
-                    <div id="chat-messages" class="chat-scroll space-y-1.5">
-                        <div class="text-slate-600 text-center italic text-xs mt-1 opacity-50">-- Tavern Chat --</div>
-                    </div>
-                    <form onsubmit="battle.sendChat(event)" class="p-2 bg-slate-950 flex gap-2 border-t border-slate-800">
-                        <input id="chat-input" class="flex-1 bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-yellow-600 placeholder-slate-600" placeholder="Type your message..." autocomplete="off">
-                        <button type="submit" class="bg-slate-800 hover:bg-slate-700 text-white rounded px-3 transition-colors"><i data-lucide="send" class="w-4 h-4"></i></button>
-                    </form>
-                </div>
-
-                <!-- OVERLAY -->
-                <div id="overlay" class="absolute inset-0 z-50 bg-black/95 flex flex-col items-center justify-center hidden p-6 text-center animate-pop">
-                    <i id="overlay-icon" data-lucide="skull" class="w-16 h-16 text-slate-700 mb-4"></i>
-                    <h1 class="text-4xl text-yellow-500 font-bold mb-2 tracking-tight" id="overlay-title">GAME OVER</h1>
-                    <p class="text-slate-400 mb-8 text-sm max-w-[200px]" id="overlay-sub">The battle has ended.</p>
-                    
-                    <button id="overlay-btn" onclick="battle.resetGame()" class="px-8 py-3 bg-red-900 border border-red-600 rounded-lg text-white font-bold hover:bg-red-800 transition-transform active:scale-95 shadow-lg shadow-red-900/20">
-                        RETURN TO TAVERN
-                    </button>
-                </div>
-
             </div>
+
+            <!-- CONTROL DECK -->
+            <div class="control-deck">
+                <div class="flex-1 text-left pr-4">
+                    <div class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Battle Log</div>
+                    <div id="action-log" class="text-sm font-bold text-slate-200 truncate leading-tight">Roll for initiative...</div>
+                    <div id="math-log" class="text-[10px] font-mono text-yellow-600/80 h-3 leading-none mt-1"></div>
+                </div>
+
+                <div id="d20-btn" class="die-btn-widget die-disabled" onclick="battle.sendAttack()">
+                    <svg viewBox="0 0 100 100" class="w-full h-full overflow-visible">
+                        <path d="M50 5 L92 28 L92 72 L50 95 L8 72 L8 28 Z" class="fill-slate-800 stroke-slate-600 stroke-2 transition-colors" id="die-bg"/>
+                        <text x="50" y="62" text-anchor="middle" class="fill-slate-500 font-sans font-black text-2xl select-none" id="die-text">20</text>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- CHAT -->
+            <div class="chat-section">
+                <div id="chat-messages" class="chat-scroll space-y-1.5">
+                    <div class="text-slate-600 text-center italic text-xs mt-1 opacity-50">-- Tavern Chat --</div>
+                </div>
+                <form onsubmit="battle.sendChat(event)" class="p-2 bg-slate-950 flex gap-2 border-t border-slate-800">
+                    <input id="chat-input" class="flex-1 bg-slate-900 border border-slate-700 rounded px-3 py-2 text-xs text-white focus:outline-none focus:border-yellow-600 placeholder-slate-600" placeholder="Type your message..." autocomplete="off">
+                    <button type="submit" class="bg-slate-800 hover:bg-slate-700 text-white rounded px-3 transition-colors"><i data-lucide="send" class="w-4 h-4"></i></button>
+                </form>
+            </div>
+
+            <!-- OVERLAY -->
+            <div id="overlay" class="absolute inset-0 z-50 bg-black/95 flex flex-col items-center justify-center hidden p-6 text-center animate-pop">
+                <i id="overlay-icon" data-lucide="skull" class="w-16 h-16 text-slate-700 mb-4"></i>
+                <h1 class="text-4xl text-yellow-500 font-bold mb-2 tracking-tight" id="overlay-title">GAME OVER</h1>
+                <p class="text-slate-400 mb-8 text-sm max-w-[200px]" id="overlay-sub">The battle has ended.</p>
+                
+                <button id="overlay-btn" onclick="battle.resetGame()" class="px-8 py-3 bg-red-900 border border-red-600 rounded-lg text-white font-bold hover:bg-red-800 transition-transform active:scale-95 shadow-lg shadow-red-900/20">
+                    RETURN TO TAVERN
+                </button>
+            </div>
+
         </div>
     </div>
 
@@ -636,6 +636,16 @@
                                             <div className="max-w-4xl mx-auto space-y-4">
                                                 <h2 className="text-4xl md:text-6xl text-amber-500 font-pirata drop-shadow-lg">{step.title}</h2>
                                                 <p className="text-xl md:text-2xl text-gray-200 font-serif leading-relaxed text-justify">{step.narration}</p>
+                                                {step.id === 'opening' && (
+                                                    <div className="pt-6 pointer-events-auto">
+                                                        <button 
+                                                            onClick={() => window.toggleFightModal()} 
+                                                            className="px-4 py-2 border-2 border-red-500 text-red-500 font-pirata text-xl hover:bg-red-900/50 rounded transition-all"
+                                                        >
+                                                            ⚔ Enter Battle Arena (Test)
+                                                        </button>
+                                                    </div>
+                                                )}
                                                 {step.id === 'dm-fading' && (
                                                     <div className="pt-6 pointer-events-auto">
                                                         <button onClick={window.transitionIntroToGate} className="btn-enter-gate animate-pulse">Approach the Gates</button>
@@ -922,7 +932,36 @@
 
         // --- MULTIPLAYER BATTLE SYSTEM ---
         const RAILWAY_URL = "https://fight-tavern-production.up.railway.app";
-        const socket = io(RAILWAY_URL);
+        // const RAILWAY_URL = "http://localhost:3000"; 
+        
+        // --- SAFE SOCKET INITIALIZATION ---
+        // Change from const to let to prevent crash if library missing
+        let socket = null;
+        // GLOBAL STATE FLAGS - RESTORED FOR UI LOGIC
+        let isMultiplayerActive = false; 
+        let isServerOffline = false;     
+
+        if (typeof io !== 'undefined') {
+            socket = io(RAILWAY_URL);
+            
+            // RESTORED CONNECTION LISTENERS
+            socket.on('connect', () => {
+                console.log("Connected to Battle Server");
+                isServerOffline = false;
+                // If we are currently in the hub, refresh the buttons to show live status
+                refreshHubButton();
+            });
+
+            socket.on('connect_error', () => {
+                console.log("Battle Server Offline / Unreachable");
+                isServerOffline = true;
+                isMultiplayerActive = false;
+                refreshHubButton();
+            });
+        } else {
+            console.error("Socket.IO library not found. Multiplayer features will be disabled.");
+            isServerOffline = true;
+        }
         
         const IMAGES = {
             warrior: "https://image.pollinations.ai/prompt/fantasy%20warrior%20portrait%20rugged%20face%20scarred%20armor%20heroic%20lighting%201970s%20dnd%20art%20style%20oil%20painting?width=400&height=400&nologin=true&seed=99",
@@ -930,7 +969,17 @@
         };
 
         const app = {
+            // Emits specific game mode request
             openGame(mode) {
+                // GUARD: Check if socket exists
+                if (!socket) {
+                    alert("Connection to server failed. Please refresh.");
+                    return;
+                }
+
+                // FIX: Initialize battle listeners IMMEDIATELY so we are ready to receive the 'welcome' event
+                battle.init();
+
                 if(mode === 'challenge') {
                     // Send challenge
                     socket.emit('send_challenge');
@@ -941,102 +990,139 @@
                     socket.emit('join_game', { mode: mode });
                     document.getElementById('lobby-panel').classList.add('hidden');
                     document.getElementById('game-widget').classList.remove('hidden');
-                    battle.init();
                 }
             },
             
             acceptChallenge() {
+                if (!socket) return;
+                // FIX: Also ensure listeners are ready for the acceptor
+                battle.init(); 
                 socket.emit('accept_challenge');
                 document.getElementById('challenge-modal').classList.add('hidden');
                 document.getElementById('lobby-panel').classList.add('hidden');
                 document.getElementById('game-widget').classList.remove('hidden');
-                battle.init();
             },
 
             closeWidget() {
                 document.getElementById('game-widget').classList.add('hidden');
                 document.getElementById('lobby-panel').classList.remove('hidden');
+                
+                // Reset lobby UI state if button exists
+                const challengeBtn = document.getElementById('challenge-btn');
+                if(challengeBtn) {
+                    challengeBtn.innerText = "SEND CHALLENGE";
+                    challengeBtn.disabled = false;
+                    challengeBtn.innerHTML = '<i data-lucide="swords" class="w-5 h-5"></i> SEND CHALLENGE';
+                    if (window.lucide) window.lucide.createIcons();
+                }
             }
         };
 
-        // --- LOBBY LOGIC ---
-        socket.on('lobby_stats', (stats) => {
-            const statusText = document.getElementById('lobby-status-text');
-            const actionsDiv = document.getElementById('lobby-actions');
-            const countText = document.getElementById('lobby-count');
-            
-            if(!countText) return; // Guard if widget not open
-
-            countText.innerText = `${stats.connected} Patrons in the Tavern`;
-            let actionHtml = '';
-
-            if (stats.gameInProgress) {
-                statusText.innerText = "Battle in Progress!";
-                statusText.className = "text-lg text-red-400 font-bold animate-pulse";
-                actionHtml = `
-                    <button onclick="app.openGame('spectate')" class="w-full bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 border border-slate-600"><i data-lucide="eye" class="w-4 h-4"></i> Watch Battle</button>
-                `;
-            } 
-            else if (stats.connected > 1) {
-                // 2+ People: Send Challenge
-                statusText.innerText = "Opponent Available!";
-                statusText.className = "text-lg text-yellow-400 font-bold";
-                actionHtml = `
-                    <button id="challenge-btn" onclick="app.openGame('challenge')" class="w-full bg-yellow-600 hover:bg-yellow-500 text-white py-4 rounded-lg font-bold flex items-center justify-center gap-2 border border-yellow-400 shadow-lg shadow-yellow-900/20">
-                        <i data-lucide="swords" class="w-5 h-5"></i> SEND CHALLENGE
-                    </button>
-                    <div class="text-center text-xs text-slate-500 mt-2">or</div>
-                    <button onclick="app.openGame('pve')" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-400 py-2 rounded-lg font-bold text-sm flex items-center justify-center gap-2 border border-slate-700 mt-2">
-                        <i data-lucide="bot" class="w-4 h-4"></i> Practice vs CPU
-                    </button>
-                `;
-            } 
-            else {
-                // 1 Person: CPU Only
-                statusText.innerText = "You are Alone...";
-                statusText.className = "text-lg text-slate-400 font-bold";
-                actionHtml = `
-                    <button onclick="app.openGame('pve')" class="w-full bg-blue-900 hover:bg-blue-800 text-blue-100 py-4 rounded-lg font-bold flex items-center justify-center gap-2 border border-blue-700 shadow-lg shadow-blue-900/20">
-                        <i data-lucide="bot" class="w-5 h-5"></i> PLAY VS COMPUTER
-                    </button>
-                    <div class="text-xs text-slate-500 mt-2">Waiting for another human...</div>
-                `;
+        // Helper to refresh UI when connection status changes
+        function refreshHubButton() {
+            const imgElement = document.getElementById('scene-image');
+            if (imgElement.src.includes('Tavern.png') && document.getElementById('choice-grid').style.display !== 'none') {
+                loadScene('hub'); 
             }
-            actionsDiv.innerHTML = actionHtml;
-            lucide.createIcons();
-        });
+        }
 
-        socket.on('challenge_received', () => {
-            const modal = document.getElementById('challenge-modal');
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-        });
-        
-        socket.on('challenge_canceled', () => {
-             const modal = document.getElementById('challenge-modal');
-             modal.classList.add('hidden');
-             modal.classList.remove('flex');
-        });
+        // --- LOBBY LOGIC ---
+        if (socket) {
+            socket.on('lobby_stats', (stats) => {
+                const statusText = document.getElementById('lobby-status-text');
+                const actionsDiv = document.getElementById('lobby-actions');
+                const countText = document.getElementById('lobby-count');
+                
+                // Update global state for UI rendering
+                if (stats.connected > 1) isMultiplayerActive = true;
+                else isMultiplayerActive = false;
 
+                if(!countText) return; // Guard if widget not open
+
+                countText.innerText = `${stats.connected} Patrons in the Tavern`;
+                let actionHtml = '';
+
+                // --- REJOIN LOGIC ---
+                if (stats.gameInProgress) {
+                    socket.emit('check_rejoin');
+                    
+                    statusText.innerText = "Battle in Progress!";
+                    statusText.className = "text-lg text-red-400 font-bold animate-pulse";
+                    actionHtml = `
+                        <button onclick="app.openGame('spectate')" class="w-full bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 border border-slate-600"><i data-lucide="eye" class="w-4 h-4"></i> Watch Battle</button>
+                    `;
+                } 
+                else if (stats.connected > 1) {
+                    statusText.innerText = "Opponent Available!";
+                    statusText.className = "text-lg text-yellow-400 font-bold";
+                    actionHtml = `
+                        <button id="challenge-btn" onclick="app.openGame('challenge')" class="w-full bg-yellow-600 hover:bg-yellow-500 text-white py-4 rounded-lg font-bold flex items-center justify-center gap-2 border border-yellow-400 shadow-lg shadow-yellow-900/20">
+                            <i data-lucide="swords" class="w-5 h-5"></i> SEND CHALLENGE
+                        </button>
+                        <div class="text-center text-xs text-slate-500 mt-2">or</div>
+                        <button onclick="app.openGame('pve')" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-400 py-2 rounded-lg font-bold text-sm flex items-center justify-center gap-2 border border-slate-700 mt-2">
+                            <i data-lucide="bot" class="w-4 h-4"></i> Practice vs CPU
+                        </button>
+                    `;
+                } 
+                else {
+                    statusText.innerText = "You are Alone...";
+                    statusText.className = "text-lg text-slate-400 font-bold";
+                    actionHtml = `
+                        <button onclick="app.openGame('pve')" class="w-full bg-blue-900 hover:bg-blue-800 text-blue-100 py-4 rounded-lg font-bold flex items-center justify-center gap-2 border border-blue-700 shadow-lg shadow-blue-900/20">
+                            <i data-lucide="bot" class="w-5 h-5"></i> PLAY VS COMPUTER
+                        </button>
+                        <div class="text-xs text-slate-500 mt-2">Waiting for another human...</div>
+                    `;
+                }
+                actionsDiv.innerHTML = actionHtml;
+                if (window.lucide) window.lucide.createIcons();
+            });
+
+            socket.on('challenge_received', () => {
+                const modal = document.getElementById('challenge-modal');
+                if(modal) {
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+                }
+            });
+            
+            socket.on('challenge_canceled', () => {
+                const modal = document.getElementById('challenge-modal');
+                if(modal) {
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                }
+            });
+        }
+
+        // --- GAME LOGIC ---
         const battle = {
             myRole: null, isMyTurn: false,
 
             init() {
                 document.getElementById('hero-img').src = IMAGES.warrior;
                 document.getElementById('enemy-img').src = IMAGES.ogre;
-                lucide.createIcons();
+                if (window.lucide) window.lucide.createIcons();
                 this.setupSocket();
+                
+                // --- ON INIT: CHECK IF WE ARE ALREADY IN A GAME ---
+                if (socket) socket.emit('check_rejoin');
             },
 
             setupSocket() {
+                if (!socket) return;
+                
                 socket.off('welcome'); socket.off('game_update'); socket.off('chat_message'); socket.off('player_left');
 
                 socket.on('welcome', (data) => {
                     this.myRole = data.role;
                     
+                    // FIX: Force switch to game view if we are assigned a combat role
                     if (this.myRole === 'hero' || this.myRole === 'enemy') {
                         document.getElementById('lobby-panel').classList.add('hidden');
                         document.getElementById('game-widget').classList.remove('hidden');
+                        // Ensure modal is hidden
                         document.getElementById('challenge-modal').classList.add('hidden');
                         document.getElementById('challenge-modal').classList.remove('flex');
                     }
@@ -1078,18 +1164,19 @@
             },
 
             sendAttack() {
-                if(!this.isMyTurn) return;
+                if(!this.isMyTurn || !socket) return;
                 document.getElementById('d20-btn').classList.add('rolling');
                 socket.emit('attack');
             },
 
             sendChat(e) {
                 e.preventDefault();
+                if (!socket) return;
                 const input = document.getElementById('chat-input');
                 if(input.value.trim()) { socket.emit('send_chat', input.value.trim()); input.value = ''; }
             },
 
-            resetGame() { socket.emit('reset_game'); },
+            resetGame() { if(socket) socket.emit('reset_game'); },
 
             updateUI(state) {
                 const setStats = (id, cur, max) => {
@@ -1176,7 +1263,7 @@
                 modal.classList.remove('active');
             } else {
                 modal.classList.add('active');
-                lucide.createIcons();
+                if (window.lucide) window.lucide.createIcons();
             }
         }
 
@@ -1279,9 +1366,17 @@
                     { text: "Go to Room", action: "loadScene('room')" },
                     // DYNAMIC BATTLE BUTTON LOGIC
                     { 
-                        text: "Enter Battle Arena", 
+                        text: () => {
+                            if (isServerOffline) return "Battle Arena (Offline)";
+                            if (isMultiplayerActive) return "LIVE BATTLE (Join)";
+                            return "Enter Battle Arena";
+                        }, 
                         action: "toggleFightModal()", 
-                        class: "btn-choice battle-btn"
+                        class: () => {
+                            if (isServerOffline) return "btn-choice offline-btn";
+                            if (isMultiplayerActive) return "btn-choice live-battle";
+                            return "btn-choice battle-btn";
+                        }
                     }
                 ] 
             },
