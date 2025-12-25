@@ -624,35 +624,41 @@
                             {STORY_STEPS.map((step, index) => {
                                 const rel = progress - index;
                                 if (rel < -1 || rel > 1) return null;
-                                const opacity = 1 - Math.abs(rel);
+                                
+                                const imgOpacity = 1 - Math.abs(rel);
                                 const scale = 1 + (rel * 0.2);
+                                const isCurrent = Math.round(progress) === index;
                                 
                                 return (
-                                    <div key={step.id} className="absolute inset-0 w-full h-full flex items-center justify-center pointer-events-none" style={{ opacity }}>
-                                        <div className="relative w-full h-full transition-transform duration-75" style={{ transform: `scale(${scale})` }}>
+                                    <div key={step.id} className="absolute inset-0 w-full h-full flex items-center justify-center pointer-events-none">
+                                        <div className="relative w-full h-full" style={{ opacity: imgOpacity, transform: `scale(${scale})` }}>
                                             <ImageWithFallback src={step.src} fallbackColor={step.color} />
                                         </div>
-                                        <div className="absolute bottom-0 left-0 right-0 p-8 pb-16 bg-gradient-to-t from-black via-black/80 to-transparent text-center">
-                                            <div className="max-w-4xl mx-auto space-y-4">
-                                                <h2 className="text-4xl md:text-6xl text-amber-500 font-pirata drop-shadow-lg">{step.title}</h2>
-                                                <p className="text-xl md:text-2xl text-gray-200 font-serif leading-relaxed text-justify">{step.narration}</p>
-                                                {step.id === 'opening' && (
-                                                    <div className="pt-6 pointer-events-auto">
-                                                        <button 
-                                                            onClick={() => window.toggleFightModal()} 
-                                                            className="px-4 py-2 border-2 border-red-500 text-red-500 font-pirata text-xl hover:bg-red-900/50 rounded transition-all"
-                                                        >
-                                                            ⚔ Enter Battle Arena (Test)
-                                                        </button>
-                                                    </div>
-                                                )}
-                                                {step.id === 'dm-fading' && (
-                                                    <div className="pt-6 pointer-events-auto">
-                                                        <button onClick={window.transitionIntroToGate} className="btn-enter-gate animate-pulse">Approach the Gates</button>
-                                                    </div>
-                                                )}
+                                        
+                                        {/* Content Block: Snaps into place when rounded index matches */}
+                                        {isCurrent && (
+                                            <div className="absolute bottom-0 left-0 right-0 p-8 pb-16 bg-gradient-to-t from-black via-black/80 to-transparent text-center">
+                                                <div className="max-w-4xl mx-auto space-y-4 animate-pop">
+                                                    <h2 className="text-4xl md:text-6xl text-amber-500 font-pirata drop-shadow-lg">{step.title}</h2>
+                                                    <p className="text-xl md:text-2xl text-gray-200 font-serif leading-relaxed text-justify">{step.narration}</p>
+                                                    {step.id === 'opening' && (
+                                                        <div className="pt-6 pointer-events-auto">
+                                                            <button 
+                                                                onClick={() => window.toggleFightModal()} 
+                                                                className="px-4 py-2 border-2 border-red-500 text-red-500 font-pirata text-xl hover:bg-red-900/50 rounded transition-all"
+                                                            >
+                                                                ⚔ Enter Battle Arena (Test)
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                    {step.id === 'dm-fading' && (
+                                                        <div className="pt-6 pointer-events-auto">
+                                                            <button onClick={window.transitionIntroToGate} className="btn-enter-gate animate-pulse">Approach the Gates</button>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
                                     </div>
                                 );
                             })}
@@ -894,7 +900,7 @@
                             </button>
                         )}
                         {gameState === 'fail' && (
-                            <button onClick={() => setGameState('intro')} className="w-full max-w-md mx-auto block text-red-500 font-pirata text-3xl uppercase tracking-widest mt-4 border-2 border-red-500/50 bg-black/60 backdrop-blur p-3 rounded-xl hover:bg-black/80 hover:border-red-400 shadow-xl">
+                            <button onClick={() => setGameState('intro')} className="w-full max-w-md mx-auto block text-red-500 font-pirata text-3xl uppercase tracking-widest mt-4 border-2 border-amber-500/50 bg-black/60 backdrop-blur p-3 rounded-xl hover:bg-black/80 hover:border-red-400 shadow-xl">
                                 ↻ Try Again
                             </button>
                         )}
