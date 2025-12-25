@@ -6,8 +6,7 @@ const io = new Server(server, {
     cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
-// --- 1. THE BRAIN: ENHANCED CHARACTER ROSTER ---
-// Added 'cr' (Challenge Rating) and attributes for flavor/calculation
+// --- 1. THE BRAIN: CHARACTER ROSTER ---
 const CHARACTERS = {
     warrior: { 
         name: 'Warrior', hp: 50, max: 50, ac: 15, 
@@ -24,13 +23,13 @@ const CHARACTERS = {
     ogre: { 
         name: 'Ogre', hp: 59, max: 59, ac: 11, 
         stats: { str: 19, dex: 8, con: 16 },
-        dmgDie: 10, dmgMod: 4, attacks: 1, cr: 2, // Harder than lvl 1 warrior
+        dmgDie: 10, dmgMod: 4, attacks: 1, cr: 2, 
         img: 'https://image.pollinations.ai/prompt/fearsome%20ogre%20portrait%20fantasy%20art%201970s%20style?width=400&height=400&nologin=true&seed=505' 
     },
     dragon: { 
         name: 'Red Dragon', hp: 110, max: 110, ac: 17, 
         stats: { str: 24, dex: 10, con: 20 },
-        dmgDie: 12, dmgMod: 6, attacks: 2, cr: 5, // Deadly Boss
+        dmgDie: 12, dmgMod: 6, attacks: 2, cr: 5, 
         img: 'https://image.pollinations.ai/prompt/red%20dragon%20head%20roaring%20fire%20fantasy%20art%20epic?width=400&height=400&nologin=true&seed=666' 
     }
 };
@@ -46,7 +45,7 @@ const INITIAL_STATE = {
 let gameState = JSON.parse(JSON.stringify(INITIAL_STATE));
 let players = {}; 
 let activeChallenger = null;
-let challengerProfile = null; // Store full object for custom chars
+let challengerProfile = null; 
 let resetTimeout = null;
 
 function broadcastLobbyStats() {
@@ -66,19 +65,16 @@ function processAiTurn() {
     setTimeout(() => {
         if (gameState.gameOver || gameState.turn !== 'enemy') return;
         performAttack('enemy', 'hero'); 
-    }, 1500);
+    }, 2500); 
 }
 
-function performAttack(attackerKey, targetKey) {
+// Updated to accept both Attack Roll and Damage Roll from client
+function performAttack(attackerKey, targetKey, manualAttack = null, manualDamage = null) {
     const attacker = gameState[attackerKey];
     const target = gameState[targetKey];
     
-    // Attack Logic
-    // If they have multiple attacks (like Dragon), this loop handles it roughly
-    // For simplicity in this version, we stick to 1 main attack per turn update
-    
-    const d20 = Math.floor(Math.random() * 20) + 1;
-    // Hit Bonus = Strength Mod (approx dmgMod) + Proficiency (2)
+    // 1. Determine Hit
+    const d20 = manualAttack || Math.floor(Math.random() * 20) + 1;
     const hitBonus = (attacker.dmgMod || 0) + 2; 
     const hitTotal = d20 + hitBonus;
     
@@ -89,11 +85,29 @@ function performAttack(attackerKey, targetKey) {
     let logMessage = '', logColor = '', logSub = '';
 
     if (isHit) {
-        const die = attacker.dmgDie || 6;
         const mod = attacker.dmgMod || 0;
         
-        damage = Math.floor(Math.random() * die) + 1 + mod;
-        if (isCrit) damage += Math.floor(Math.random() * die) + 1;
+        // 2. Determine Damage
+        // If client sent a damage roll (because they saw it hit), use it.
+        // Otherwise (AI or auto-resolve), generate it.
+        let dieResult = 0;
+        if (manualDamage) {
+            dieResult = manualDamage;
+        } else {
+            const die = attacker.dmgDie || 6;
+            dieResult = Math.floor(Math.random() * die) + 1;
+        }
+
+        // Crit logic: Double the dice result if we are auto-rolling, 
+        // OR simply add another roll. For simplicity with manual rolls, 
+        // we assume manualDamage is the base weapon die result. 
+        // If it's a crit, we add an extra auto-roll for the "crit bonus" 
+        // to keep the game fast, unless we want a 3rd roll phase.
+        damage = dieResult + mod;
+        if (isCrit) {
+            // Add extra crit die (auto-rolled for speed)
+            damage += Math.floor(Math.random() * (attacker.dmgDie || 6)) + 1;
+        }
         
         target.hp = Math.max(0, target.hp - damage);
         
@@ -134,10 +148,9 @@ io.on('connection', (socket) => {
 
     socket.on('join_game', (data) => {
         const requestedMode = data.mode || 'pvp';
-        // Handle Custom Character passed from Client
         let charProfile;
         if (data.customProfile) {
-            charProfile = data.customProfile; // Use the stats sent by client
+            charProfile = data.customProfile; 
         } else {
             charProfile = { ...CHARACTERS[data.charId || 'warrior'] };
         }
@@ -149,11 +162,7 @@ io.on('connection', (socket) => {
         else if (requestedMode === 'pve') {
             gameState = JSON.parse(JSON.stringify(INITIAL_STATE));
             gameState.mode = 'pve';
-            
-            // Set Player
             gameState.hero = charProfile;
-            
-            // Set Enemy (If data.enemyId is passed, use it, else Ogre)
             const enemyId = data.enemyId || 'ogre';
             gameState.enemy = { ...CHARACTERS[enemyId] };
 
@@ -165,10 +174,8 @@ io.on('connection', (socket) => {
 
     socket.on('send_challenge', (data) => {
         activeChallenger = socket.id;
-        // Store the full custom profile if provided, or lookup ID
         if (data.customProfile) challengerProfile = data.customProfile;
         else challengerProfile = { ...CHARACTERS[data.charId || 'warrior'] };
-        
         socket.broadcast.emit('challenge_received');
     });
 
@@ -178,12 +185,8 @@ io.on('connection', (socket) => {
 
         gameState = JSON.parse(JSON.stringify(INITIAL_STATE));
         gameState.mode = 'pvp';
-        
-        // 1. Assign Challenger (Hero)
         players[activeChallenger] = 'hero';
         gameState.hero = challengerProfile;
-
-        // 2. Assign Accepter (Enemy/Rival)
         players[socket.id] = 'enemy';
         let myProfile;
         if(data.customProfile) myProfile = data.customProfile;
@@ -199,10 +202,11 @@ io.on('connection', (socket) => {
         io.emit('game_update', { state: gameState });
     });
 
-    socket.on('attack', () => {
+    // Updated Attack Listener: Accepts { roll: 18, damage: 6 }
+    socket.on('attack', (data) => {
         const role = players[socket.id];
         if (role !== gameState.turn || gameState.gameOver) return;
-        performAttack(role, role === 'hero' ? 'enemy' : 'hero');
+        performAttack(role, role === 'hero' ? 'enemy' : 'hero', data?.roll, data?.damage);
     });
 
     socket.on('send_chat', (msg) => {
@@ -220,12 +224,10 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         const role = players[socket.id];
         delete players[socket.id];
-        
         if (socket.id === activeChallenger) {
             activeChallenger = null;
             io.emit('challenge_canceled');
         }
-
         if ((role === 'hero' || role === 'enemy') && gameState.mode === 'pvp') {
             io.emit('player_left', { role: role });
             resetTimeout = setTimeout(() => {
@@ -233,7 +235,6 @@ io.on('connection', (socket) => {
                 broadcastLobbyStats();
             }, 30000);
         }
-        
         if ((role === 'hero' && gameState.mode === 'pve') || Object.keys(players).length === 0) {
             gameState = JSON.parse(JSON.stringify(INITIAL_STATE));
         }
