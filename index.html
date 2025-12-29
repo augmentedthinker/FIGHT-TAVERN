@@ -37,6 +37,7 @@
                         'shake': 'shake 0.5s cubic-bezier(.36,.07,.19,.97) both',
                         'pop': 'pop 0.3s ease-out forwards',
                         'pulse-glow': 'pulseGlow 2s infinite',
+                        'fade-in-slow': 'fadeIn 3s ease-in forwards',
                     },
                     keyframes: {
                         shake: {
@@ -52,6 +53,10 @@
                         pulseGlow: {
                             '0%, 100%': { opacity: '1', filter: 'brightness(1)' },
                             '50%': { opacity: '0.8', filter: 'brightness(1.2)' }
+                        },
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' }
                         }
                     }
                 }
@@ -177,6 +182,15 @@
             box-shadow: 0 0 30px rgba(245, 158, 11, 0.6);
             transform: scale(1.1);
         }
+
+        /* --- EPILOGUE STYLES --- */
+        #epilogue-screen {
+            position: fixed; inset: 0; z-index: 5000;
+            background: black;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            padding: 2rem; text-align: center; color: white;
+        }
+        #epilogue-screen.active { display: flex; animation: fadeIn 2s forwards; }
 
         /* --- PART 1 (INTRO) STYLES --- */
         @keyframes rotate-phone {
@@ -454,7 +468,8 @@
         <div class="title-menu">
             <button class="title-btn" onclick="startGame()">Start Game</button>
             <button class="title-btn" onclick="loadGame()">Load Game</button>
-            <button class="title-btn" onclick="alert('Options Menu coming soon!')">Options</button>
+            <!-- Changed from Options to Full Screen -->
+            <button class="title-btn" onclick="toggleFullScreen()">Full Screen</button>
         </div>
     </div>
 
@@ -466,6 +481,22 @@
             <p id="cinematic-text-content" class="typewriter-text"></p>
         </div>
         <button id="cinematic-next-btn" class="btn-cinematic-next" onclick="nextCinematic()">Next</button>
+    </div>
+
+    <!-- === EPILOGUE: Final Cinematic Ending === -->
+    <div id="epilogue-screen">
+        <div class="max-w-3xl space-y-12 px-6">
+            <i data-lucide="sparkles" class="w-16 h-16 text-amber-500 mx-auto animate-pulse-glow"></i>
+            <h1 class="text-6xl md:text-8xl font-pirata text-amber-500 tracking-widest drop-shadow-2xl">VICTORY</h1>
+            <div class="space-y-6">
+                <p id="epilogue-text-1" class="text-2xl md:text-3xl font-serif text-gray-200 leading-relaxed italic opacity-0 transition-opacity duration-1000">The storm howls no more for you. The biting frost that once claimed your bones is now but a memory, replaced by the crackling warmth of Haven's Keep.</p>
+                <p id="epilogue-text-2" class="text-xl md:text-2xl font-serif text-gray-400 leading-relaxed opacity-0 transition-opacity duration-1000">You arrived at these gates as a nameless shadow in the snow. Now, you stand recognized—by the burly Bartho, the swift Elara, and the mysterious patrons of the tavern. You have discovered your strength, sharpened your wit, and secured a safe harbor.</p>
+                <p id="epilogue-text-3" class="text-xl md:text-2xl font-serif text-amber-400/80 leading-relaxed opacity-0 transition-opacity duration-1000">The town of Blackwood lies just beyond the tavern doors, vast and filled with secrets yet to be unearthed. Your true chronicle has only just begun.</p>
+            </div>
+            <div id="epilogue-btn-container" class="opacity-0 transition-opacity duration-1000">
+                <button class="btn-choice text-3xl px-12 py-4 border-2 border-amber-500 hover:bg-amber-500 hover:text-black transition-all" onclick="location.reload()">Rest Victorious</button>
+            </div>
+        </div>
     </div>
 
     <!-- === PART 1: Intro (React) === -->
@@ -756,9 +787,23 @@
             
             // Reset UI labels
             ['STR','DEX','INT','CHA'].forEach(s => {
-                document.getElementById(s.toLowerCase() + '-val').innerText = '0';
+                const el = document.getElementById(s.toLowerCase() + '-val');
+                if(el) el.innerText = '0';
             });
             updateGoldUI();
+        }
+
+        // NEW: Full Screen function
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    // Fail silently or handle error
+                });
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
         }
 
         function startGame() {
@@ -828,7 +873,7 @@
             for(let s of ['STR','DEX','INT','CHA']) {
                 const val = characterStats[s];
                 const mod = Math.floor((val-10)/2);
-                uiStats[s].innerHTML = `${val} <span class="stat-mod">(${mod>=0?'+':''}${mod})</span>`;
+                if(uiStats[s]) uiStats[s].innerHTML = `${val} <span class="stat-mod">(${mod>=0?'+':''}${mod})</span>`;
             }
             document.getElementById('title-screen').classList.add('hidden-title');
             setTimeout(() => {
@@ -840,7 +885,7 @@
         }
     </script>
 
-    <!-- === LOGIC: Part 1 (Intro) === -->
+    <!-- === PART 1: Intro (React) === -->
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
         const STORY_STEPS = [
@@ -1159,7 +1204,8 @@
         let currentSceneKey = 'hub';
 
         function updateGoldUI() {
-            document.getElementById('gold-val').innerText = characterStats.GOLD;
+            const goldEl = document.getElementById('gold-val');
+            if(goldEl) goldEl.innerText = characterStats.GOLD;
         }
 
         function buyRoom() {
@@ -1183,15 +1229,15 @@
         }
 
         function finishGame() {
-            const ov = document.getElementById('overlay');
-            ov.classList.remove('hidden');
-            const icon = document.getElementById('overlay-icon');
-            if (icon) icon.setAttribute('data-lucide', 'party-popper');
-            document.getElementById('overlay-title').innerText = "CONGRATULATIONS!";
-            document.getElementById('overlay-sub').innerText = "You have discovered your inner strength, filled your belly, and secured a safe harbor. Your journey through Haven's Keep has truly begun.";
-            const btn = document.getElementById('overlay-btn');
-            btn.innerText = "REST VICTORIOUS";
-            btn.onclick = () => location.reload();
+            const epi = document.getElementById('epilogue-screen');
+            epi.classList.add('active');
+            
+            // Sequential cinematic reveals
+            setTimeout(() => { document.getElementById('epilogue-text-1').style.opacity = '1'; }, 1000);
+            setTimeout(() => { document.getElementById('epilogue-text-2').style.opacity = '1'; }, 3000);
+            setTimeout(() => { document.getElementById('epilogue-text-3').style.opacity = '1'; }, 5000);
+            setTimeout(() => { document.getElementById('epilogue-btn-container').style.opacity = '1'; }, 7000);
+
             if (window.lucide) window.lucide.createIcons();
         }
 
@@ -1282,7 +1328,7 @@
                     statusText.innerText = "You are Alone...";
                     statusText.className = "text-lg text-slate-400 font-bold";
                     actionHtml = `
-                        <button onclick="app.openGame('pve')" class="w-full bg-blue-900 hover:bg-blue-800 text-blue-100 py-4 rounded-lg font-bold flex items-center justify-center gap-2 border border-blue-700 shadow-lg shadow-blue-900/20"><i data-lucide="bot" class="w-5 h-5"></i> PLAY VS COMPUTER</button>
+                        <button onclick="app.openGame('pve')" class="w-full bg-blue-900 hover:bg-blue-800 text-blue-100 py-4 rounded-lg font-bold flex items-center justify-center gap-2 border border-blue-700 shadow-lg shadow-yellow-900/20"><i data-lucide="bot" class="w-5 h-5"></i> PLAY VS COMPUTER</button>
                         <div class="text-xs text-slate-500 mt-2">Waiting for another human...</div>
                     `;
                 }
@@ -1362,10 +1408,15 @@
             resetGame() { if(socket) socket.emit('reset_game'); },
             updateUI(state) {
                 const setStats = (id, cur, max) => {
-                    document.getElementById(id + '-hp-text').innerText = `${cur}/${max}`;
-                    const pct = (cur/max)*100;
-                    document.getElementById(id + '-bar').style.width = `${pct}%`;
-                    setTimeout(() => document.getElementById(id + '-chip').style.width = `${pct}%`, 500);
+                    const hpText = document.getElementById(id + '-hp-text');
+                    if(hpText) hpText.innerText = `${cur}/${max}`;
+                    const bar = document.getElementById(id + '-bar');
+                    if(bar) {
+                        const pct = (cur/max)*100;
+                        bar.style.width = `${pct}%`;
+                        const chip = document.getElementById(id + '-chip');
+                        if(chip) setTimeout(() => chip.style.width = `${pct}%`, 500);
+                    }
                 };
                 setStats('hero', state.hero.hp, state.hero.max);
                 setStats('enemy', state.enemy.hp, state.enemy.max);
@@ -1660,7 +1711,7 @@
 
         function toggleDiceModal() { if (diceModal.classList.contains('active')) { diceModal.classList.remove('active'); restoreDiceUI(); } else diceModal.classList.add('active'); }
         function toggleJournal() { journalModal.classList.toggle('active'); }
-        function addToStory(text) { const div = document.createElement('div'); div.className = 'journal-entry'; div.innerText = text; storyLog.appendChild(div); }
+        function addToStory(text) { const div = document.createElement('div'); div.className = 'journal-entry'; div.innerText = text; if(storyLog) storyLog.appendChild(div); }
         function restrictDiceUI(allowed) { document.querySelectorAll('.die-btn').forEach(b => { if(parseInt(b.dataset.sides) === allowed) { b.classList.remove('display-none'); b.click(); } else { b.classList.add('display-none'); } }); }
         function restoreDiceUI() { document.querySelectorAll('.die-btn').forEach(b => b.classList.remove('display-none')); }
         function startStatTest(stat, next) { if(characterStats[stat]>0) return; activeStat=stat; pendingNextScene=next; isGeneratingStat=true; statRolls=[]; toggleDiceModal(); restrictDiceUI(6); document.querySelector('.dice-title').innerText = `Generating ${stat} (1/3)`; }
@@ -1669,13 +1720,14 @@
         window.handleDiceResult = function(result) {
             if(isGeneratingStat && activeStat) {
                 statRolls.push(result);
-                if(statRolls.length < 3) { setTimeout(() => document.querySelector('.dice-title').innerText = `Generating ${activeStat} (${statRolls.length+1}/3)`, 1000); }
+                if(statRolls.length < 3) { setTimeout(() => { const el = document.querySelector('.dice-title'); if(el) el.innerText = `Generating ${activeStat} (${statRolls.length+1}/3)`; }, 1000); }
                 else {
                     const total = statRolls.reduce((a,b)=>a+b,0);
                     characterStats[activeStat] = total;
                     const mod = Math.floor((total-10)/2);
-                    uiStats[activeStat].innerHTML = `${total} <span class="stat-mod">(${mod>=0?'+':''}${mod})</span>`;
-                    document.querySelector('.dice-title').innerText = `${activeStat} Set to ${total}`;
+                    if(uiStats[activeStat]) uiStats[activeStat].innerHTML = `${total} <span class="stat-mod">(${mod>=0?'+':''}${mod})</span>`;
+                    const el = document.querySelector('.dice-title');
+                    if(el) el.innerText = `${activeStat} Set to ${total}`;
                     isGeneratingStat = false;
                     addToStory(`Your ${activeStat} is ${total}.`);
                     setTimeout(() => { toggleDiceModal(); restoreDiceUI(); activeStat=null; loadScene(pendingNextScene); }, 1500);
@@ -1684,7 +1736,8 @@
                 const mod = Math.floor((characterStats[activeStat]-10)/2);
                 const total = result+mod;
                 const success = total>=activeDC;
-                document.querySelector('.dice-title').innerText = `${success?"Success!":"Failure..."} (${result}${mod>=0?'+':''}${mod}=${total} vs DC ${activeDC})`;
+                const el = document.querySelector('.dice-title');
+                if(el) el.innerText = `${success?"Success!":"Failure..."} (${result}${mod>=0?'+':''}${mod}=${total} vs DC ${activeDC})`;
                 if(activeQuestKey) { questLog[activeQuestKey] = success?'success':'fail'; generateMemory(activeQuestKey, success); }
                 setTimeout(() => { toggleDiceModal(); restoreDiceUI(); isSkillCheck=false; activeStat=null; loadScene(success ? activeSuccessScene : activeFailScene); addToStory(success ? `Success on ${activeQuestKey} quest.` : `Failed ${activeQuestKey} quest.`); }, 2500);
             }
@@ -1692,6 +1745,7 @@
 
         document.addEventListener('DOMContentLoaded', () => {
              addToStory("You arrived at The Weary Traveler after surviving the storm.");
+             if(window.lucide) window.lucide.createIcons();
         });
     </script>
     
@@ -1713,6 +1767,8 @@
         };
 
         function init() {
+            const container = document.getElementById('canvas-container');
+            if(!container) return;
             setupGraphics(); setupPhysics(); setupCage(); spawnDie(20); setupInteractions(); animate();
         }
 
@@ -1730,7 +1786,7 @@
             container.appendChild(STATE.renderer.domElement);
             STATE.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
             const sun = new THREE.DirectionalLight(0xffffff, 1.5);
-            sun.position.set(5, 15, 5); sun.castShadow = true;
+            sun.position.set(5, 15, 5); sun.shadow.camera.left = -10; sun.shadow.camera.right = 10; sun.shadow.camera.top = 10; sun.shadow.camera.bottom = -10; sun.castShadow = true;
             sun.shadow.mapSize.width = 1024; sun.shadow.mapSize.height = 1024;
             STATE.scene.add(sun);
         }
@@ -1789,7 +1845,7 @@
             }
             for(let i=0; i<5; i++) {
                 const A=2+i, B=7+i, An=2+((i+1)%5), Bn=7+((i+1)%5);
-                indices.push(0, B, A,  0, An, B,  1, B, An,  1, An, Bn);
+                indices.push(0, B, A,  0, An, B,  1, B, An,   An, 1, Bn);
             }
             const geo = new THREE.BufferGeometry();
             geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
@@ -1878,31 +1934,37 @@
                 btn.addEventListener('click', (e) => {
                     document.querySelectorAll('.die-btn').forEach(b => b.classList.remove('active'));
                     e.target.classList.add('active'); spawnDie(parseInt(e.target.dataset.sides));
-                    document.getElementById('result-display').classList.remove('visible');
+                    const res = document.getElementById('result-display');
+                    if(res) res.classList.remove('visible');
                 });
             });
-            document.getElementById('roll-btn').addEventListener('click', rollDice);
+            const rollBtn = document.getElementById('roll-btn');
+            if(rollBtn) rollBtn.addEventListener('click', rollDice);
             const drop = document.getElementById('color-dropdown');
             const mainBtn = document.getElementById('current-color-btn');
-            mainBtn.addEventListener('click', (e) => { e.stopPropagation(); drop.classList.toggle('open'); });
-            document.addEventListener('click', () => drop.classList.remove('open'));
+            if(mainBtn) mainBtn.addEventListener('click', (e) => { e.stopPropagation(); if(drop) drop.classList.toggle('open'); });
+            document.addEventListener('click', () => { if(drop) drop.classList.remove('open'); });
             document.querySelectorAll('.color-option').forEach(opt => {
                 opt.addEventListener('click', (e) => {
                     e.stopPropagation();
                     const col = parseInt(e.target.dataset.color);
                     const cssCol = e.target.style.background;
-                    CONFIG.colors.die = col; mainBtn.style.background = cssCol;
-                    document.getElementById('roll-btn').style.background = cssCol;
+                    CONFIG.colors.die = col; if(mainBtn) mainBtn.style.background = cssCol;
+                    const rBtn = document.getElementById('roll-btn');
+                    if(rBtn) rBtn.style.background = cssCol;
                     if(STATE.dieMesh) STATE.dieMesh.children[0].material.color.setHex(col);
-                    drop.classList.remove('open');
+                    if(drop) drop.classList.remove('open');
                 });
             });
         }
 
         function rollDice() {
             if(STATE.isRolling || !STATE.dieBody) return;
-            STATE.isRolling = true; document.getElementById('roll-btn').disabled = true;
-            document.getElementById('result-display').classList.remove('visible');
+            STATE.isRolling = true; 
+            const rBtn = document.getElementById('roll-btn');
+            if(rBtn) rBtn.disabled = true;
+            const resDisp = document.getElementById('result-display');
+            if(resDisp) resDisp.classList.remove('visible');
             STATE.dieBody.position.set(0, 6, 0); STATE.dieBody.velocity.set(0,0,0);
             STATE.dieBody.angularVelocity.set(0,0,0);
             const kick = 10, spin = 20;
@@ -1915,7 +1977,9 @@
         }
 
         function showResult() {
-            STATE.isRolling = false; document.getElementById('roll-btn').disabled = false;
+            STATE.isRolling = false; 
+            const rBtn = document.getElementById('roll-btn');
+            if(rBtn) rBtn.disabled = false;
             const quat = new THREE.Quaternion().copy(STATE.dieBody.quaternion);
             let bestDot = -Infinity, result = 1;
             const targetDir = (STATE.currentSides === 4) ? new THREE.Vector3(0,-1,0) : new THREE.Vector3(0,1,0);
@@ -1924,8 +1988,10 @@
                 if(dot > bestDot) { bestDot = dot; result = f.value; }
             });
             const disp = document.getElementById('result-display');
-            disp.innerText = result; disp.style.color = (result === STATE.currentSides) ? CONFIG.colors.gold : (result === 1) ? CONFIG.colors.red : CONFIG.colors.dark;
-            disp.classList.add('visible');
+            if(disp) {
+                disp.innerText = result; disp.style.color = (result === STATE.currentSides) ? CONFIG.colors.gold : (result === 1) ? CONFIG.colors.red : CONFIG.colors.dark;
+                disp.classList.add('visible');
+            }
             if (window.handleDiceResult) window.handleDiceResult(result);
         }
 
